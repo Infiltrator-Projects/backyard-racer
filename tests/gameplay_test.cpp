@@ -44,6 +44,19 @@ int main() {
     if (game.active_car()->horsepower() != first_carb_hp) return fail("spare carb was not reinstalled");
     if (game.spare_parts().size() != 1) return fail("swapped-out carb was not returned to parts bin");
 
+    std::size_t engine_index = game.parts_catalog().size();
+    for (std::size_t i = 0; i < game.parts_catalog().size(); ++i) {
+        if (game.parts_catalog()[i].type == PartType::Engine) {
+            engine_index = i;
+            break;
+        }
+    }
+    if (engine_index == game.parts_catalog().size()) return fail("engine upgrades are missing from the catalog");
+    const int hp_before_engine = game.active_car()->horsepower();
+    if (!game.buy_part(engine_index, &error)) return fail("could not buy engine upgrade: " + error);
+    if (game.active_car()->horsepower() <= hp_before_engine)
+        return fail("engine upgrade did not increase horsepower");
+
     const auto save_path = std::filesystem::temp_directory_path() / "backyard-racer-gameplay-test.sav";
     std::error_code remove_error;
     std::filesystem::remove(save_path, remove_error);
