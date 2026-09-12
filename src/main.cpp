@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+
+#include <infiltratr/arithmetic.h>
+#include <infiltratr/core.h>
 
 #include <algorithm>
 #include <array>
@@ -12,6 +16,26 @@
 #include <vector>
 
 namespace backyard_racer {
+
+const InfiltratrProjectInfo& project_info() {
+    static const InfiltratrProjectInfo info = {
+        sizeof(InfiltratrProjectInfo),
+        INFILTRATR_PROJECT_INFO_ABI,
+        "Backyard Racer",
+        "backyard-racer",
+        "au.com.infiltrator.backyard-racer",
+        "0.1.0-dev",
+        "Infiltrator-Projects/backyard-racer",
+        "development",
+        "Shannon Smith",
+        "https://github.com/Infiltrator-Projects/backyard-racer",
+        "GPL-3.0-or-later",
+        "Street-rod garage and racing game",
+        "backyard-racer",
+        "Copyright (c) 2026 Shannon Smith"
+    };
+    return info;
+}
 
 struct Color { std::uint8_t r, g, b; };
 struct Rect {
@@ -30,7 +54,13 @@ public:
     void resize(int w, int h) {
         width_ = std::max(1, w);
         height_ = std::max(1, h);
-        pixels_.assign(static_cast<std::size_t>(width_ * height_), Color{0, 0, 0});
+        std::size_t pixel_count = 0;
+        if (!infiltratr_size_multiply_checked(static_cast<std::size_t>(width_),
+                                              static_cast<std::size_t>(height_),
+                                              &pixel_count)) {
+            throw std::overflow_error("framebuffer dimensions overflow addressable memory");
+        }
+        pixels_.assign(pixel_count, Color{0, 0, 0});
     }
 
     int width() const { return width_; }
@@ -41,7 +71,7 @@ public:
 
     void pixel(int x, int y, Color c) {
         if (x < 0 || y < 0 || x >= width_ || y >= height_) return;
-        pixels_[static_cast<std::size_t>(y * width_ + x)] = c;
+        pixels_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) + static_cast<std::size_t>(x)] = c;
     }
 
     void fill_rect(Rect r, Color c) {
@@ -63,7 +93,7 @@ public:
         const unsigned ia = 255U - a;
         for (int y = y0; y < y1; ++y) {
             for (int x = x0; x < x1; ++x) {
-                Color& dst = pixels_[static_cast<std::size_t>(y * width_ + x)];
+                Color& dst = pixels_[static_cast<std::size_t>(y) * static_cast<std::size_t>(width_) + static_cast<std::size_t>(x)];
                 dst.r = static_cast<std::uint8_t>((dst.r * ia + c.r * a) / 255U);
                 dst.g = static_cast<std::uint8_t>((dst.g * ia + c.g * a) / 255U);
                 dst.b = static_cast<std::uint8_t>((dst.b * ia + c.b * a) / 255U);
@@ -182,13 +212,13 @@ public:
             return;
         }
 
-        const int button = button_at(x, y);
-        if (button == 0) {
+        const int button_index = button_at(x, y);
+        if (button_index == 0) {
             screen_ = Screen::Garage;
             status_.clear();
-        } else if (button == 2) {
+        } else if (button_index == 2) {
             status_ = "SETTINGS ARE NOT WIRED YET";
-        } else if (button == 3) {
+        } else if (button_index == 3) {
             running_ = false;
         }
         dirty_ = true;
@@ -271,8 +301,8 @@ private:
 
         for (int i = 0; i < 6; ++i) {
             const int y = h * 78 / 100 + i * 30;
-            const int mw = 70 + i * 18;
-            fb_.fill_rect({w - 100 - mw, y, mw, 5}, {210, 190, 117});
+            const int marking_width = 70 + i * 18;
+            fb_.fill_rect({w - 100 - marking_width, y, marking_width, 5}, {210, 190, 117});
         }
     }
 
@@ -330,7 +360,7 @@ public:
         window_ = XCreateSimpleWindow(display_, RootWindow(display_, screen_),
                                       100, 100, w, h, 0,
                                       BlackPixel(display_, screen_), BlackPixel(display_, screen_));
-        XStoreName(display_, window_, "Backyard Racer");
+        XStoreName(display_, window_, project_info().program_name);
         XSelectInput(display_, window_, ExposureMask | KeyPressMask | ButtonPressMask |
                                         PointerMotionMask | StructureNotifyMask);
         delete_window_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
@@ -341,11 +371,7 @@ public:
     }
 
     ~X11App() {
-        if (image_) {
-            std::free(image_->data);
-            image_->data = nullptr;
-            XDestroyImage(image_);
-        }
+        destroy_image();
         if (gc_) XFreeGC(display_, gc_);
         if (window_) XDestroyWindow(display_, window_);
         if (display_) XCloseDisplay(display_);
@@ -411,20 +437,34 @@ private:
         return ((static_cast<unsigned long>(value) * max_value + 127UL) / 255UL << shift) & mask;
     }
 
+    void destroy_image() {
+        if (!image_) return;
+        std::free(image_->data);
+        image_->data = nullptr;
+        XDestroyImage(image_);
+        image_ = nullptr;
+    }
+
     void recreate_image(int w, int h) {
-        if (image_) {
-            std::free(image_->data);
-            image_->data = nullptr;
-            XDestroyImage(image_);
-            image_ = nullptr;
-        }
+        destroy_image();
 
         image_ = XCreateImage(display_, DefaultVisual(display_, screen_), DefaultDepth(display_, screen_),
                               ZPixmap, 0, nullptr, w, h, 32, 0);
         if (!image_) throw std::runtime_error("Unable to create XImage");
 
-        image_->data = static_cast<char*>(std::calloc(static_cast<std::size_t>(image_->bytes_per_line) * h, 1));
-        if (!image_->data) throw std::bad_alloc();
+        std::size_t image_bytes = 0;
+        if (!infiltratr_size_multiply_checked(static_cast<std::size_t>(image_->bytes_per_line),
+                                              static_cast<std::size_t>(h),
+                                              &image_bytes)) {
+            destroy_image();
+            throw std::overflow_error("XImage storage size overflow");
+        }
+
+        image_->data = static_cast<char*>(std::calloc(image_bytes, 1));
+        if (!image_->data) {
+            destroy_image();
+            throw std::bad_alloc();
+        }
     }
 
     void present() {
@@ -434,7 +474,7 @@ private:
 
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
-                const Color c = pixels[static_cast<std::size_t>(y * w + x)];
+                const Color c = pixels[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)];
                 const unsigned long packed = pack(c.r, image_->red_mask) |
                                              pack(c.g, image_->green_mask) |
                                              pack(c.b, image_->blue_mask);
@@ -449,12 +489,26 @@ private:
 
 } // namespace backyard_racer
 
-int main() {
+int main(int argc, char** argv) {
+    const InfiltratrProjectInfo& info = backyard_racer::project_info();
+    if (!infiltratr_project_info_is_valid(&info)) {
+        std::cerr << "Backyard Racer project metadata is invalid\n";
+        return 1;
+    }
+
+    if (argc == 2 && infiltratr_string_equal(argv[1], "--version")) {
+        std::cout << info.program_name << ' ' << info.version << '\n';
+        return 0;
+    }
+    if (argc == 2 && infiltratr_string_equal(argv[1], "--project-info")) {
+        return infiltratr_project_info_print(stdout, &info) == 0 ? 0 : 1;
+    }
+
     try {
         backyard_racer::X11App app(1280, 720);
         return app.run();
     } catch (const std::exception& e) {
-        std::cerr << "Backyard Racer failed to start: " << e.what() << '\n';
+        std::cerr << info.program_name << " failed to start: " << e.what() << '\n';
         return 1;
     }
 }
