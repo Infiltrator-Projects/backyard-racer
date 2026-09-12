@@ -95,12 +95,22 @@ void split_car_art(CarArt& art) {
             const Color c = infiltratr_surface_get_pixel(&art.source.get(), x, y);
             if (c.a == 0) continue;
 
+            const int maximum = std::max({static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b)});
+            const int minimum = std::min({static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b)});
+            const int luma = (static_cast<int>(c.r) + c.g + c.b) / 3;
+            const bool paintable = maximum - minimum < 22 &&
+                                   luma >= art.paint_min && luma <= art.paint_max;
+
             const int rear_dx = x - rear_cx;
             const int front_dx = x - front_cx;
             const int wheel_dy = y - wheel_cy;
             const bool rear = rear_dx * rear_dx + wheel_dy * wheel_dy <= source_radius * source_radius;
             const bool front = front_dx * front_dx + wheel_dy * wheel_dy <= source_radius * source_radius;
-            if (rear || front) {
+
+            // Only non-body pixels may become rotating wheel pixels. This keeps
+            // painted fenders and quarter panels rigid even where they overlap
+            // the circular wheel extraction area.
+            if ((rear || front) && !paintable) {
                 SurfaceOwner& wheel = rear ? art.rear_wheel : art.front_wheel;
                 const int center_x = rear ? rear_cx : front_cx;
                 infiltratr_surface_set_pixel(&wheel.get(),
@@ -109,10 +119,7 @@ void split_car_art(CarArt& art) {
                 continue;
             }
 
-            const int maximum = std::max({static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b)});
-            const int minimum = std::min({static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b)});
-            const int luma = (static_cast<int>(c.r) + c.g + c.b) / 3;
-            if (maximum - minimum < 22 && luma >= art.paint_min && luma <= art.paint_max) {
+            if (paintable) {
                 infiltratr_surface_set_pixel(&art.body.get(), x, y, c);
             } else {
                 infiltratr_surface_set_pixel(&art.details.get(), x, y, c);
