@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -24,7 +23,7 @@ const InfiltratrProjectInfo& project_info() {
     static const InfiltratrProjectInfo info = {
         sizeof(InfiltratrProjectInfo), INFILTRATR_PROJECT_INFO_ABI,
         "Backyard Racer", "backyard-racer", "au.com.infiltrator.backyard-racer",
-        "0.5.0-dev", "Infiltrator-Projects/backyard-racer", "development",
+        "0.5.1-dev", "Infiltrator-Projects/backyard-racer", "development",
         "Shannon Smith", "https://github.com/Infiltrator-Projects/backyard-racer",
         "GPL-3.0-or-later", "Street-rod garage and racing game", "backyard-racer",
         "Copyright (c) 2026 Shannon Smith"
@@ -34,7 +33,9 @@ const InfiltratrProjectInfo& project_info() {
 
 struct Rect {
     int x = 0, y = 0, w = 0, h = 0;
-    bool contains(int px, int py) const { return px >= x && py >= y && px < x + w && py < y + h; }
+    bool contains(int px, int py) const {
+        return px >= x && py >= y && px < x + w && py < y + h;
+    }
 };
 
 enum class Screen { Menu, Classifieds, Garage, Parts, Diner, Race, Result, Settings };
@@ -44,24 +45,30 @@ public:
     App(int width, int height) : width_(width), height_(height) {
         dpy_ = XOpenDisplay(nullptr);
         if (!dpy_) throw std::runtime_error("Unable to open X11 display");
+
         screen_no_ = DefaultScreen(dpy_);
         visual_ = DefaultVisual(dpy_, screen_no_);
-        win_ = XCreateSimpleWindow(dpy_, RootWindow(dpy_, screen_no_), 70, 70,
-                                   static_cast<unsigned>(width_), static_cast<unsigned>(height_), 0,
-                                   BlackPixel(dpy_, screen_no_), BlackPixel(dpy_, screen_no_));
+        win_ = XCreateSimpleWindow(
+            dpy_, RootWindow(dpy_, screen_no_), 70, 70,
+            static_cast<unsigned>(width_), static_cast<unsigned>(height_), 0,
+            BlackPixel(dpy_, screen_no_), BlackPixel(dpy_, screen_no_));
         XStoreName(dpy_, win_, project_info().program_name);
-        XSelectInput(dpy_, win_, ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask |
-                                 PointerMotionMask | StructureNotifyMask);
+        XSelectInput(dpy_, win_, ExposureMask | KeyPressMask | KeyReleaseMask |
+                                 ButtonPressMask | PointerMotionMask | StructureNotifyMask);
         wm_delete_ = XInternAtom(dpy_, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(dpy_, win_, &wm_delete_, 1);
+
         gc_ = XCreateGC(dpy_, win_, 0, nullptr);
         font_ = XLoadQueryFont(dpy_, "9x15bold");
         if (!font_) font_ = XLoadQueryFont(dpy_, "fixed");
         if (font_) XSetFont(dpy_, gc_, font_->fid);
+
+        ensure_back_buffer();
         XMapWindow(dpy_, win_);
     }
 
     ~App() {
+        if (back_buffer_) XFreePixmap(dpy_, back_buffer_);
         if (font_) XFreeFont(dpy_, font_);
         if (gc_) XFreeGC(dpy_, gc_);
         if (win_) XDestroyWindow(dpy_, win_);
@@ -70,16 +77,22 @@ public:
 
     int run() {
         draw();
+
         while (running_) {
             if (screen_ == Screen::Race) {
+                bool event_redraw = false;
                 while (XPending(dpy_) > 0) {
                     XEvent ev{};
                     XNextEvent(dpy_, &ev);
                     process_event(ev);
+                    event_redraw = true;
                 }
-                tick_race();
-                draw();
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+                const bool simulation_redraw = tick_race();
+                if (event_redraw || simulation_redraw) draw();
+
+                if (screen_ == Screen::Race)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
             } else {
                 XEvent ev{};
                 XNextEvent(dpy_, &ev);
@@ -98,10 +111,18 @@ private:
     GC gc_ = 0;
     XFontStruct* font_ = nullptr;
     Atom wm_delete_ = 0;
-    int width_ = 1280, height_ = 720;
-    int mouse_x_ = 0, mouse_y_ = 0;
+
+    Pixmap back_buffer_ = 0;
+    unsigned int back_width_ = 0;
+    unsigned int back_height_ = 0;
+
+    int width_ = 1280;
+    int height_ = 720;
+    int mouse_x_ = 0;
+    int mouse_y_ = 0;
     bool running_ = true;
     Screen screen_ = Screen::Menu;
+
     GameState game_;
     RaceResult last_race_;
     DragRaceSession race_;
@@ -118,6 +139,29 @@ private:
         return count > 0 ? static_cast<std::uint64_t>(count) : 0U;
     }
 
+    Drawable canvas() const {
+        return back_buffer_ ? static_cast<Drawable>(back_buffer_) : static_cast<Drawable>(win_);
+    }
+
+    void ensure_back_buffer() {
+        const unsigned int desired_w = static_cast<unsigned int>(std::max(1, width_));
+        const unsigned int desired_h = static_cast<unsigned int>(std::max(1, height_));
+        if (back_buffer_ && desired_w == back_width_ && desired_h == back_height_) return;
+
+        if (back_buffer_) {
+            XFreePixmap(dpy_, back_buffer_);
+            back_buffer_ = 0;
+        }
+
+        back_buffer_ = XCreatePixmap(
+            dpy_, win_, desired_w, desired_h,
+            static_cast<unsigned int>(DefaultDepth(dpy_, screen_no_)));
+        if (!back_buffer_) throw std::runtime_error("Unable to allocate X11 back buffer");
+
+        back_width_ = desired_w;
+        back_height_ = desired_h;
+    }
+
     void process_event(const XEvent& ev) {
         switch (ev.type) {
             case Expose:
@@ -125,6 +169,7 @@ private:
             case ConfigureNotify:
                 width_ = std::max(900, ev.xconfigure.width);
                 height_ = std::max(600, ev.xconfigure.height);
+                ensure_back_buffer();
                 break;
             case MotionNotify:
                 mouse_x_ = ev.xmotion.x;
@@ -155,37 +200,53 @@ private:
             const unsigned long range = mask >> shift;
             return (((static_cast<unsigned long>(value) * range + 127UL) / 255UL) << shift) & mask;
         };
-        return channel(r, visual_->red_mask) | channel(g, visual_->green_mask) | channel(b, visual_->blue_mask);
+        return channel(r, visual_->red_mask) |
+               channel(g, visual_->green_mask) |
+               channel(b, visual_->blue_mask);
     }
 
-    void color(unsigned r, unsigned g, unsigned b) { XSetForeground(dpy_, gc_, rgb(r, g, b)); }
+    void color(unsigned r, unsigned g, unsigned b) {
+        XSetForeground(dpy_, gc_, rgb(r, g, b));
+    }
+
     void fill(Rect r, unsigned cr, unsigned cg, unsigned cb) {
         color(cr, cg, cb);
-        XFillRectangle(dpy_, win_, gc_, r.x, r.y,
-                       static_cast<unsigned>(std::max(0, r.w)), static_cast<unsigned>(std::max(0, r.h)));
+        XFillRectangle(
+            dpy_, canvas(), gc_, r.x, r.y,
+            static_cast<unsigned>(std::max(0, r.w)),
+            static_cast<unsigned>(std::max(0, r.h)));
     }
+
     void outline(Rect r, unsigned cr, unsigned cg, unsigned cb, int thick = 1) {
         color(cr, cg, cb);
-        for (int i = 0; i < thick; ++i)
-            XDrawRectangle(dpy_, win_, gc_, r.x + i, r.y + i,
-                           static_cast<unsigned>(std::max(0, r.w - 1 - 2 * i)),
-                           static_cast<unsigned>(std::max(0, r.h - 1 - 2 * i)));
+        for (int i = 0; i < thick; ++i) {
+            XDrawRectangle(
+                dpy_, canvas(), gc_, r.x + i, r.y + i,
+                static_cast<unsigned>(std::max(0, r.w - 1 - 2 * i)),
+                static_cast<unsigned>(std::max(0, r.h - 1 - 2 * i)));
+        }
     }
-    void text(int x, int y, const std::string& s, unsigned r = 235, unsigned g = 236, unsigned b = 228) {
+
+    void text(int x, int y, const std::string& s,
+              unsigned r = 235, unsigned g = 236, unsigned b = 228) {
         color(r, g, b);
-        XDrawString(dpy_, win_, gc_, x, y, s.c_str(), static_cast<int>(s.size()));
+        XDrawString(dpy_, canvas(), gc_, x, y, s.c_str(), static_cast<int>(s.size()));
     }
-    void big_text(int x, int y, const std::string& s, unsigned r = 210, unsigned g = 215, unsigned b = 220) {
+
+    void big_text(int x, int y, const std::string& s,
+                  unsigned r = 210, unsigned g = 215, unsigned b = 220) {
         text(x, y, s, r, g, b);
         text(x + 1, y, s, r, g, b);
         text(x, y + 1, s, r, g, b);
     }
+
     Rect button(int x, int y, int w, int h, const std::string& label, bool enabled = true) {
         Rect r{x, y, w, h};
         const bool hover = enabled && r.contains(mouse_x_, mouse_y_);
         fill(r, hover ? 55 : 24, hover ? 58 : 26, hover ? 62 : 29);
         outline(r, enabled ? 198 : 86, enabled ? 205 : 88, enabled ? 211 : 90, 2);
-        text(x + 14, y + h / 2 + 5, label, enabled ? 235 : 110, enabled ? 236 : 112, enabled ? 228 : 114);
+        text(x + 14, y + h / 2 + 5, label,
+             enabled ? 235 : 110, enabled ? 236 : 112, enabled ? 228 : 114);
         return r;
     }
 
@@ -194,13 +255,18 @@ private:
         big_text(26, 34, "BACKYARD RACER", 205, 211, 216);
         text(26, 60, title, 190, 192, 194);
         text(width_ - 430, 34,
-             "CASH $" + std::to_string(game_.cash()) + "   REP " + std::to_string(game_.reputation()) +
-             "   W " + std::to_string(game_.wins()) + " L " + std::to_string(game_.losses()),
+             "CASH $" + std::to_string(game_.cash()) +
+             "   REP " + std::to_string(game_.reputation()) +
+             "   W " + std::to_string(game_.wins()) +
+             " L " + std::to_string(game_.losses()),
              220, 220, 205);
     }
 
     void draw_car(int cx, int base_y, int w, unsigned r, unsigned g, unsigned b) {
-        const int h = std::max(60, w / 5), x = cx - w / 2, y = base_y - h;
+        const int h = std::max(60, w / 5);
+        const int x = cx - w / 2;
+        const int y = base_y - h;
+
         fill({x + w / 12, y + h / 3, w * 10 / 12, h * 2 / 3}, r, g, b);
         XPoint roof[4] = {
             {static_cast<short>(x + w / 4), static_cast<short>(y + h / 3)},
@@ -209,8 +275,9 @@ private:
             {static_cast<short>(x + w * 10 / 12), static_cast<short>(y + h / 3)}
         };
         color(r, g, b);
-        XFillPolygon(dpy_, win_, gc_, roof, 4, Convex, CoordModeOrigin);
+        XFillPolygon(dpy_, canvas(), gc_, roof, 4, Convex, CoordModeOrigin);
         fill({x + w * 43 / 100, y + 8, w * 25 / 100, h / 4}, 36, 48, 59);
+
         for (int wx : {x + w / 5, x + w * 4 / 5 - 34}) {
             fill({wx, base_y - 30, 34, 34}, 12, 12, 12);
             fill({wx + 9, base_y - 21, 16, 16}, 160, 164, 168);
@@ -237,19 +304,29 @@ private:
         fill({0, 0, width_, height_}, 221, 214, 188);
         header("THE DAILY GAZETTE - USED CARS");
         text(40, 112, "USED CARS - CLICK A LISTING TO BUY", 28, 28, 28);
+
         const auto& cars = game_.classifieds();
-        const int gap = 18, left = 40, top = 140, card_w = (width_ - 100) / 2, card_h = 105;
+        const int gap = 18;
+        const int left = 40;
+        const int top = 140;
+        const int card_w = (width_ - 100) / 2;
+        const int card_h = 105;
+
         for (std::size_t i = 0; i < cars.size(); ++i) {
-            const int col = static_cast<int>(i % 2), row = static_cast<int>(i / 2);
+            const int col = static_cast<int>(i % 2);
+            const int row = static_cast<int>(i / 2);
             Rect card{left + col * (card_w + gap), top + row * (card_h + 12), card_w, card_h};
             const bool hover = card.contains(mouse_x_, mouse_y_);
             fill(card, hover ? 246 : 238, hover ? 240 : 232, hover ? 214 : 206);
             outline(card, 35, 35, 35, 2);
             text(card.x + 14, card.y + 27, car_display_name(cars[i]), 25, 25, 25);
             text(card.x + 14, card.y + 54,
-                 "PRICE $" + std::to_string(cars[i].price) + "   HP " + std::to_string(cars[i].horsepower), 50, 50, 50);
-            text(card.x + 14, card.y + 80, "WEIGHT " + std::to_string(cars[i].weight_lb) + " LB", 70, 70, 70);
+                 "PRICE $" + std::to_string(cars[i].price) +
+                 "   HP " + std::to_string(cars[i].horsepower), 50, 50, 50);
+            text(card.x + 14, card.y + 80,
+                 "WEIGHT " + std::to_string(cars[i].weight_lb) + " LB", 70, 70, 70);
         }
+
         button(width_ - 210, height_ - 58, 170, 38, "GARAGE");
         text(40, height_ - 34, message_, 60, 50, 40);
     }
@@ -263,14 +340,22 @@ private:
         if (car) {
             draw_car(width_ / 2, height_ * 67 / 100 - 15, std::min(620, width_ / 2), 151, 39, 36);
             big_text(45, 128, car_display_name(car->base), 235, 236, 228);
-            text(45, 158, "HP " + std::to_string(car->horsepower()) + "   WEIGHT " +
-                 std::to_string(car->base.weight_lb) + " LB", 225, 225, 214);
+            text(45, 158,
+                 "HP " + std::to_string(car->horsepower()) +
+                 "   WEIGHT " + std::to_string(car->base.weight_lb) + " LB",
+                 225, 225, 214);
+
             std::ostringstream tr;
             tr << std::fixed << std::setprecision(2) << car->traction();
-            text(45, 184, "TRACTION " + tr.str() + "   CONDITION " + std::to_string(car->condition) + "%", 225, 225, 214);
-            text(45, 210, "SELL VALUE $" + std::to_string(car->resale_value()) +
+            text(45, 184,
+                 "TRACTION " + tr.str() +
+                 "   CONDITION " + std::to_string(car->condition) + "%",
+                 225, 225, 214);
+            text(45, 210,
+                 "SELL VALUE $" + std::to_string(car->resale_value()) +
                  "   REPAIR $" + std::to_string(car->repair_cost()) +
-                 "   SPARES " + std::to_string(game_.spare_parts().size()), 225, 225, 214);
+                 "   SPARES " + std::to_string(game_.spare_parts().size()),
+                 225, 225, 214);
 
             button(45, 232, 150, 36, "REPAIR", car->repair_cost() > 0);
             button(210, 232, 150, 36, "SELL CAR");
@@ -301,15 +386,20 @@ private:
 
     Rect catalog_rect(std::size_t i) const {
         const int split = width_ * 63 / 100;
-        const int left = 30, top = 140, gap = 12;
-        const int card_w = (split - 75) / 2, card_h = 70;
-        const int col = static_cast<int>(i % 2), row = static_cast<int>(i / 2);
+        const int left = 30;
+        const int top = 140;
+        const int gap = 12;
+        const int card_w = (split - 75) / 2;
+        const int card_h = 70;
+        const int col = static_cast<int>(i % 2);
+        const int row = static_cast<int>(i / 2);
         return {left + col * (card_w + gap), top + row * (card_h + gap), card_w, card_h};
     }
 
     Rect spare_rect(std::size_t i) const {
         const int split = width_ * 63 / 100;
-        const int x = split + 24, y = 140 + static_cast<int>(i) * 62;
+        const int x = split + 24;
+        const int y = 140 + static_cast<int>(i) * 62;
         return {x, y, width_ - x - 30, 50};
     }
 
@@ -325,11 +415,13 @@ private:
             const Rect r = catalog_rect(i);
             const bool hover = r.contains(mouse_x_, mouse_y_);
             fill(r, hover ? 45 : 29, hover ? 48 : 31, hover ? 52 : 34);
-            outline(r, 150, 155, 160, 1);
+            outline(r, 150, 155, 160);
             text(r.x + 12, r.y + 22, parts[i].name, 235, 236, 228);
             text(r.x + 12, r.y + 46,
-                 part_type_name(parts[i].type) + "   $" + std::to_string(parts[i].price) +
-                 "   +" + std::to_string(parts[i].horsepower_gain) + " HP", 190, 194, 196);
+                 part_type_name(parts[i].type) +
+                 "   $" + std::to_string(parts[i].price) +
+                 "   +" + std::to_string(parts[i].horsepower_gain) + " HP",
+                 190, 194, 196);
         }
 
         const auto& spares = game_.spare_parts();
@@ -340,9 +432,10 @@ private:
                 const Rect r = spare_rect(i);
                 const bool hover = r.contains(mouse_x_, mouse_y_);
                 fill(r, hover ? 72 : 45, hover ? 68 : 43, hover ? 58 : 39);
-                outline(r, 176, 164, 136, 1);
+                outline(r, 176, 164, 136);
                 text(r.x + 10, r.y + 20, spares[i].name, 235, 230, 210);
-                text(r.x + 10, r.y + 40, part_type_name(spares[i].type) + " - INSTALL FREE", 190, 185, 170);
+                text(r.x + 10, r.y + 40,
+                     part_type_name(spares[i].type) + " - INSTALL FREE", 190, 185, 170);
             }
         }
 
@@ -354,15 +447,21 @@ private:
         fill({0, 0, width_, height_}, 34, 29, 27);
         header("THE DINER - REPUTATION LADDER");
         const Opponent opp = game_.current_opponent();
+
         fill({65, 125, width_ - 130, 330}, 19, 20, 21);
         outline({65, 125, width_ - 130, 330}, 165, 168, 170, 2);
         big_text(100, 175, opp.name + " WANTS TO RACE", 232, 232, 220);
         text(100, 212, car_display_name(opp.car.base), 210, 210, 200);
-        text(100, 242, "HP " + std::to_string(opp.car.horsepower()) + "   WEIGHT " +
-             std::to_string(opp.car.base.weight_lb) + " LB", 210, 210, 200);
-        text(100, 274, "YOUR REP " + std::to_string(game_.reputation()) +
-             "   RECORD " + std::to_string(game_.wins()) + "-" + std::to_string(game_.losses()), 190, 192, 194);
+        text(100, 242,
+             "HP " + std::to_string(opp.car.horsepower()) +
+             "   WEIGHT " + std::to_string(opp.car.base.weight_lb) + " LB",
+             210, 210, 200);
+        text(100, 274,
+             "YOUR REP " + std::to_string(game_.reputation()) +
+             "   RECORD " + std::to_string(game_.wins()) +
+             "-" + std::to_string(game_.losses()), 190, 192, 194);
         text(100, 302, "WIN RACES TO CLIMB: EDDIE -> MICK -> RAY -> THE KING", 170, 172, 174);
+
         button(100, 342, 180, 48, "DRAG FOR $100");
         button(300, 342, 180, 48, "DRAG FOR $250");
         button(500, 342, 210, 48, "DRAG FOR PINKS");
@@ -384,12 +483,12 @@ private:
 
         fill({55, 155, width_ - 110, 330}, 46, 47, 49);
         color(225, 225, 210);
-        XDrawLine(dpy_, win_, gc_, start_x, 175, start_x, 465);
-        XDrawLine(dpy_, win_, gc_, finish_x, 175, finish_x, 465);
+        XDrawLine(dpy_, canvas(), gc_, start_x, 175, start_x, 465);
+        XDrawLine(dpy_, canvas(), gc_, finish_x, 175, finish_x, 465);
+
         color(145, 145, 135);
-        for (int x = start_x; x < finish_x; x += 70) {
-            XDrawLine(dpy_, win_, gc_, x, 322, std::min(x + 35, finish_x), 322);
-        }
+        for (int x = start_x; x < finish_x; x += 70)
+            XDrawLine(dpy_, canvas(), gc_, x, 322, std::min(x + 35, finish_x), 322);
 
         draw_car(player_x, 300, 150, 151, 39, 36);
         draw_car(opponent_x, 445, 150, 76, 95, 145);
@@ -397,47 +496,72 @@ private:
         text(65, 350, race_opponent_.name, 220, 220, 210);
 
         const bool green = race_.green();
-        fill({width_ / 2 - 42, 95, 84, 42}, green ? 28U : 180U, green ? 178U : 35U, 35U);
+        fill({width_ / 2 - 42, 95, 84, 42},
+             green ? 28U : 180U, green ? 178U : 35U, 35U);
         big_text(width_ / 2 - 30, 122, green ? "GO" : "RED", 245, 245, 235);
 
         std::ostringstream speed;
         speed << std::fixed << std::setprecision(1) << race_.speed_mph();
         std::ostringstream distance;
         distance << std::fixed << std::setprecision(0) << race_.distance_ft();
-        text(65, 520, "SPEED " + speed.str() + " MPH   RPM " + std::to_string(race_.rpm()) +
-             "   GEAR " + std::to_string(race_.gear()) + "/" + std::to_string(race_.max_gears()), 235, 236, 228);
+
+        text(65, 520,
+             "SPEED " + speed.str() +
+             " MPH   RPM " + std::to_string(race_.rpm()) +
+             "   GEAR " + std::to_string(race_.gear()) +
+             "/" + std::to_string(race_.max_gears()),
+             235, 236, 228);
         text(65, 548, "DISTANCE " + distance.str() + " / 1320 FT", 210, 212, 205);
 
-        const int tach_x = 65, tach_y = 575, tach_w = width_ - 130;
+        const int tach_x = 65;
+        const int tach_y = 575;
+        const int tach_w = width_ - 130;
         fill({tach_x, tach_y, tach_w, 20}, 25, 25, 25);
-        const int tach_fill = static_cast<int>(std::clamp(race_.rpm() / 7600.0, 0.0, 1.0) * tach_w);
-        fill({tach_x, tach_y, tach_fill, 20}, race_.rpm() >= 6500 ? 205U : 185U,
+        const int tach_fill =
+            static_cast<int>(std::clamp(race_.rpm() / 7600.0, 0.0, 1.0) * tach_w);
+        fill({tach_x, tach_y, tach_fill, 20},
+             race_.rpm() >= 6500 ? 205U : 185U,
              race_.rpm() >= 6500 ? 55U : 160U, 45U);
-        outline({tach_x, tach_y, tach_w, 20}, 190, 192, 194, 1);
+        outline({tach_x, tach_y, tach_w, 20}, 190, 192, 194);
 
-        text(65, 630, "HOLD UP / W / SPACE = THROTTLE    A = UPSHIFT    Z = DOWNSHIFT", 225, 225, 214);
-        text(65, 656, race_.green() ? "SHIFT NEAR THE REDLINE - YOUR ET DECIDES THE BET" :
-             "STAGE IT: HOLD THROTTLE TO BUILD RPM BEFORE GREEN", 190, 192, 194);
+        text(65, 630,
+             "HOLD UP / W / SPACE = THROTTLE    A = UPSHIFT    Z = DOWNSHIFT",
+             225, 225, 214);
+        text(65, 656,
+             race_.green()
+                 ? "SHIFT NEAR THE REDLINE - YOUR ET DECIDES THE BET"
+                 : "STAGE IT: HOLD THROTTLE TO BUILD RPM BEFORE GREEN",
+             190, 192, 194);
         text(65, 682, "ESC = ABORT BACK TO DINER", 155, 158, 160);
     }
 
     void draw_result() {
         fill({0, 0, width_, height_}, 23, 24, 25);
         header("RACE RESULT");
+
         const bool won = last_race_.won;
-        big_text(90, 155, last_race_.summary, won ? 120 : 220, won ? 210 : 95, won ? 120 : 80);
+        big_text(90, 155, last_race_.summary,
+                 won ? 120 : 220, won ? 210 : 95, won ? 120 : 80);
+
         if (last_race_.valid) {
-            std::ostringstream p, o;
+            std::ostringstream p;
+            std::ostringstream o;
             p << std::fixed << std::setprecision(2) << last_race_.player_et;
             o << std::fixed << std::setprecision(2) << last_race_.opponent_et;
             text(90, 210, "YOUR ET      " + p.str() + " SEC", 225, 225, 214);
             text(90, 240, "OPPONENT ET  " + o.str() + " SEC", 225, 225, 214);
             if (!last_race_.pink_slip)
                 text(90, 275, "CASH CHANGE  " + std::to_string(last_race_.cash_delta), 225, 225, 214);
+
             const std::string rep_prefix = last_race_.reputation_delta >= 0 ? "+" : "";
-            text(90, 305, "REPUTATION   " + rep_prefix + std::to_string(last_race_.reputation_delta), 225, 225, 214);
-            text(90, 335, "RACE WEAR    -" + std::to_string(last_race_.wear) + "% CONDITION", 225, 225, 214);
+            text(90, 305,
+                 "REPUTATION   " + rep_prefix + std::to_string(last_race_.reputation_delta),
+                 225, 225, 214);
+            text(90, 335,
+                 "RACE WEAR    -" + std::to_string(last_race_.wear) + "% CONDITION",
+                 225, 225, 214);
         }
+
         button(90, 385, 220, 50, "BACK TO GARAGE");
     }
 
@@ -445,12 +569,15 @@ private:
         fill({0, 0, width_, height_}, 25, 26, 28);
         header("SETTINGS");
         big_text(70, 155, "SETTINGS ARE NEXT", 220, 220, 210);
-        text(70, 195, "THE INVESTOR BUILD IS FOCUSED ON THE COMPLETE GAMEPLAY LOOP.", 190, 192, 194);
+        text(70, 195,
+             "THE INVESTOR BUILD IS FOCUSED ON THE COMPLETE GAMEPLAY LOOP.",
+             190, 192, 194);
         button(70, 250, 190, 44, "MAIN MENU");
     }
 
     void draw() {
-        XClearWindow(dpy_, win_);
+        ensure_back_buffer();
+
         switch (screen_) {
             case Screen::Menu: draw_menu(); break;
             case Screen::Classifieds: draw_classifieds(); break;
@@ -461,6 +588,12 @@ private:
             case Screen::Result: draw_result(); break;
             case Screen::Settings: draw_settings(); break;
         }
+
+        XCopyArea(
+            dpy_, back_buffer_, win_, gc_, 0, 0,
+            static_cast<unsigned>(std::max(1, width_)),
+            static_cast<unsigned>(std::max(1, height_)),
+            0, 0);
         XFlush(dpy_);
     }
 
@@ -480,37 +613,48 @@ private:
         race_pinks_ = pinks;
         race_.start(*car, race_opponent_);
 
-        if (!infiltratr_fixed_step_configure(&race_clock_, 1000000000ULL, 60ULL,
-                                             250000000ULL, 8ULL) ||
+        if (!infiltratr_fixed_step_configure(
+                &race_clock_, 1000000000ULL, 60ULL, 250000000ULL, 8ULL) ||
             !infiltratr_fixed_step_reset(&race_clock_, monotonic_ns())) {
             throw std::runtime_error("Common fixed-step scheduler could not initialize");
         }
+
         race_clock_ready_ = true;
         message_ = "STAGE - HOLD THROTTLE, THEN SHIFT IT YOURSELF";
         screen_ = Screen::Race;
     }
 
-    void tick_race() {
-        if (screen_ != Screen::Race || !race_clock_ready_) return;
+    bool tick_race() {
+        if (screen_ != Screen::Race || !race_clock_ready_) return false;
 
         InfiltratrFixedStepResult timing{};
         if (!infiltratr_fixed_step_advance(&race_clock_, monotonic_ns(), &timing))
             throw std::runtime_error("Common fixed-step scheduler failed during race");
 
+        if (timing.steps_to_run == 0) return false;
+
         constexpr double step_seconds = 1.0 / 60.0;
-        for (std::uint64_t step = 0; step < timing.steps_to_run && screen_ == Screen::Race; ++step) {
+        for (std::uint64_t step = 0;
+             step < timing.steps_to_run && screen_ == Screen::Race;
+             ++step) {
             race_.update(step_seconds);
+
             if (race_.finished()) {
-                last_race_ = game_.settle_race(race_opponent_, race_wager_, race_pinks_, race_.player_et());
+                last_race_ = game_.settle_race(
+                    race_opponent_, race_wager_, race_pinks_, race_.player_et());
                 message_ = last_race_.summary;
                 race_clock_ready_ = false;
                 screen_ = Screen::Result;
             }
         }
+        return true;
     }
 
     static bool throttle_key(KeySym key_sym) {
-        return key_sym == XK_Up || key_sym == XK_w || key_sym == XK_W || key_sym == XK_space;
+        return key_sym == XK_Up ||
+               key_sym == XK_w ||
+               key_sym == XK_W ||
+               key_sym == XK_space;
     }
 
     void key_press(KeySym key_sym) {
@@ -531,17 +675,23 @@ private:
         }
 
         if (key_sym != XK_Escape) return;
-        if (screen_ == Screen::Menu) running_ = false;
-        else if (screen_ == Screen::Garage) screen_ = Screen::Menu;
-        else if (screen_ == Screen::Result || screen_ == Screen::Parts ||
-                 screen_ == Screen::Diner || screen_ == Screen::Classifieds)
-            screen_ = Screen::Garage;
-        else
+        if (screen_ == Screen::Menu) {
+            running_ = false;
+        } else if (screen_ == Screen::Garage) {
             screen_ = Screen::Menu;
+        } else if (screen_ == Screen::Result ||
+                   screen_ == Screen::Parts ||
+                   screen_ == Screen::Diner ||
+                   screen_ == Screen::Classifieds) {
+            screen_ = Screen::Garage;
+        } else {
+            screen_ = Screen::Menu;
+        }
     }
 
     void key_release(KeySym key_sym) {
-        if (screen_ == Screen::Race && throttle_key(key_sym)) race_.set_throttle(false);
+        if (screen_ == Screen::Race && throttle_key(key_sym))
+            race_.set_throttle(false);
     }
 
     void click(int x, int y) {
@@ -561,11 +711,21 @@ private:
         }
 
         if (screen_ == Screen::Classifieds) {
-            const int card_w = (width_ - 100) / 2, card_h = 105, gap = 18, left = 40, top = 140;
+            const int card_w = (width_ - 100) / 2;
+            const int card_h = 105;
+            const int gap = 18;
+            const int left = 40;
+            const int top = 140;
             const auto& cars = game_.classifieds();
+
             for (std::size_t i = 0; i < cars.size(); ++i) {
-                const int col = static_cast<int>(i % 2), row = static_cast<int>(i / 2);
-                Rect r{left + col * (card_w + gap), top + row * (card_h + 12), card_w, card_h};
+                const int col = static_cast<int>(i % 2);
+                const int row = static_cast<int>(i / 2);
+                Rect r{
+                    left + col * (card_w + gap),
+                    top + row * (card_h + 12),
+                    card_w, card_h
+                };
                 if (r.contains(x, y)) {
                     std::string error;
                     if (game_.buy_car(i, &error)) {
@@ -577,7 +737,9 @@ private:
                     return;
                 }
             }
-            if (Rect{width_ - 210, height_ - 58, 170, 38}.contains(x, y)) screen_ = Screen::Garage;
+
+            if (Rect{width_ - 210, height_ - 58, 170, 38}.contains(x, y))
+                screen_ = Screen::Garage;
             return;
         }
 
@@ -591,6 +753,7 @@ private:
                     message_ = error;
                 return;
             }
+
             if (game_.active_car() && Rect{210, 232, 150, 36}.contains(x, y)) {
                 int price = 0;
                 std::string error;
@@ -602,10 +765,17 @@ private:
                 }
                 return;
             }
-            if (Rect{35, height_ - 66, 180, 42}.contains(x, y)) screen_ = Screen::Classifieds;
-            else if (Rect{230, height_ - 66, 170, 42}.contains(x, y) && game_.active_car()) screen_ = Screen::Parts;
-            else if (Rect{415, height_ - 66, 150, 42}.contains(x, y) && game_.active_car()) screen_ = Screen::Diner;
-            else if (Rect{580, height_ - 66, 160, 42}.contains(x, y) && game_.garage().size() > 1) {
+
+            if (Rect{35, height_ - 66, 180, 42}.contains(x, y)) {
+                screen_ = Screen::Classifieds;
+            } else if (Rect{230, height_ - 66, 170, 42}.contains(x, y) &&
+                       game_.active_car()) {
+                screen_ = Screen::Parts;
+            } else if (Rect{415, height_ - 66, 150, 42}.contains(x, y) &&
+                       game_.active_car()) {
+                screen_ = Screen::Diner;
+            } else if (Rect{580, height_ - 66, 160, 42}.contains(x, y) &&
+                       game_.garage().size() > 1) {
                 game_.next_car();
                 message_ = "ACTIVE CAR CHANGED";
             } else if (Rect{width_ - 200, height_ - 66, 165, 42}.contains(x, y)) {
@@ -640,7 +810,8 @@ private:
                 }
             }
 
-            if (Rect{width_ - 200, height_ - 58, 165, 38}.contains(x, y)) screen_ = Screen::Garage;
+            if (Rect{width_ - 200, height_ - 58, 165, 38}.contains(x, y))
+                screen_ = Screen::Garage;
             return;
         }
 
@@ -665,7 +836,10 @@ private:
             return;
         }
 
-        if (screen_ == Screen::Settings && Rect{70, 250, 190, 44}.contains(x, y)) screen_ = Screen::Menu;
+        if (screen_ == Screen::Settings &&
+            Rect{70, 250, 190, 44}.contains(x, y)) {
+            screen_ = Screen::Menu;
+        }
     }
 };
 
@@ -677,10 +851,12 @@ int main(int argc, char** argv) {
         std::cerr << "Backyard Racer project metadata is invalid\n";
         return 1;
     }
+
     if (argc == 2 && infiltratr_string_equal(argv[1], "--version")) {
         std::cout << info.program_name << ' ' << info.version << '\n';
         return 0;
     }
+
     if (argc == 2 && infiltratr_string_equal(argv[1], "--project-info"))
         return infiltratr_project_info_print(stdout, &info) == 0 ? 0 : 1;
 
