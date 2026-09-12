@@ -9,13 +9,21 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <sstream>
+#include <system_error>
 
 namespace backyard_racer {
 
 namespace {
 
 constexpr int kStartingCash = 4000;
+constexpr int kSaveVersion = 1;
+constexpr std::size_t kMaxSavedCars = 64;
+constexpr std::size_t kMaxSavedParts = 256;
 
 const std::vector<CarSpec> kOpponentCars = {
     {"opp_nova", 1966, "CHEVROLET", "NOVA", 2600, 220, 3000, 0.91, 4},
@@ -28,7 +36,64 @@ const std::vector<std::string> kOpponentNames = {
     "EDDIE", "MICK", "RAY", "THE KING"
 };
 
+void set_error(std::string* error, const std::string& message) {
+    if (error) *error = message;
+}
+
+void write_car(std::ostream& out, const CarSpec& car) {
+    out << "CAR " << std::quoted(car.id) << ' ' << car.year << ' '
+        << std::quoted(car.make) << ' ' << std::quoted(car.model) << ' '
+        << car.price << ' ' << car.horsepower << ' ' << car.weight_lb << ' '
+        << std::setprecision(17) << car.traction << ' ' << car.gears << '\n';
+}
+
+bool read_car(std::istream& in, CarSpec& car) {
+    std::string marker;
+    if (!(in >> marker) || marker != "CAR") return false;
+    return static_cast<bool>(in >> std::quoted(car.id) >> car.year
+                                >> std::quoted(car.make) >> std::quoted(car.model)
+                                >> car.price >> car.horsepower >> car.weight_lb
+                                >> car.traction >> car.gears);
+}
+
+void write_part(std::ostream& out, const PartSpec& part) {
+    out << "PART " << std::quoted(part.id) << ' ' << std::quoted(part.name) << ' '
+        << static_cast<int>(part.type) << ' ' << part.price << ' '
+        << part.horsepower_gain << ' ' << std::setprecision(17)
+        << part.traction_gain << ' ' << part.shift_gain << '\n';
+}
+
+bool read_part(std::istream& in, PartSpec& part) {
+    std::string marker;
+    int type = 0;
+    if (!(in >> marker) || marker != "PART") return false;
+    if (!(in >> std::quoted(part.id) >> std::quoted(part.name) >> type
+             >> part.price >> part.horsepower_gain >> part.traction_gain
+             >> part.shift_gain)) return false;
+    if (type < static_cast<int>(PartType::Carburetor) ||
+        type > static_cast<int>(PartType::Camshaft)) return false;
+    part.type = static_cast<PartType>(type);
+    return true;
+}
+
+bool sane_car(const CarSpec& car) {
+    return !car.id.empty() && car.year >= 1900 && car.year <= 2100 &&
+           car.price >= 0 && car.horsepower > 0 && car.weight_lb >= 1000 &&
+           std::isfinite(car.traction) && car.traction > 0.0 &&
+           car.gears >= 1 && car.gears <= 10;
+}
+
+bool sane_part(const PartSpec& part) {
+    return !part.id.empty() && part.price >= 0 &&
+           std::isfinite(part.traction_gain) && std::isfinite(part.shift_gain);
+}
+
 } // namespace
+
+GameState::GameState() {
+    seed_catalogs();
+    load_from(default_save_path(), nullptr);
+}
 
 int OwnedCar::horsepower() const {
     int hp = base.horsepower;
@@ -109,6 +174,25 @@ void GameState::seed_catalogs() {
     };
 }
 
+std::string GameState::default_save_path() {
+    if (const char* explicit_path = std::getenv("BACKYARD_RACER_SAVE")) {
+        if (*explicit_path) return explicit_path;
+    }
+    if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
+        if (*xdg) return (std::filesystem::path(xdg) / "backyard-racer" / "save_v1.txt").string();
+    }
+    if (const char* home = std::getenv("HOME")) {
+        if (*home) return (std::filesystem::path(home) / ".local" / "share" /
+                           "backyard-racer" / "save_v1.txt").string();
+    }
+    return "backyard-racer-save-v1.txt";
+}
+
+void GameState::persist() const {
+    if (!started_) return;
+    save_to(default_save_path(), nullptr);
+}
+
 void GameState::new_game() {
     started_ = true;
     cash_ = kStartingCash;
@@ -119,6 +203,7 @@ void GameState::new_game() {
     spare_parts_.clear();
     active_car_ = 0;
     seed_catalogs();
+    persist();
 }
 
 const OwnedCar* GameState::active_car() const {
@@ -134,20 +219,21 @@ OwnedCar* GameState::active_car() {
 void GameState::next_car() {
     if (garage_.empty()) return;
     active_car_ = (active_car_ + 1) % garage_.size();
+    persist();
 }
 
 bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     if (!started_) {
-        if (error) *error = "START A NEW GAME FIRST";
+        set_error(error, "START A NEW GAME FIRST");
         return false;
     }
     if (listing_index >= classifieds_.size()) {
-        if (error) *error = "THAT CAR IS NOT AVAILABLE";
+        set_error(error, "THAT CAR IS NOT AVAILABLE");
         return false;
     }
     const CarSpec spec = classifieds_[listing_index];
     if (cash_ < spec.price) {
-        if (error) *error = "NOT ENOUGH CASH";
+        set_error(error, "NOT ENOUGH CASH");
         return false;
     }
 
@@ -159,13 +245,14 @@ bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     replacement.price = std::max(600, spec.price + 175);
     replacement.horsepower += 5;
     classifieds_[listing_index] = replacement;
+    persist();
     return true;
 }
 
 bool GameState::sell_active_car(int* sale_price, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
-        if (error) *error = "NO CAR TO SELL";
+        set_error(error, "NO CAR TO SELL");
         return false;
     }
 
@@ -175,28 +262,30 @@ bool GameState::sell_active_car(int* sale_price, std::string* error) {
     garage_.erase(garage_.begin() + static_cast<std::ptrdiff_t>(active_car_));
     if (garage_.empty()) active_car_ = 0;
     else if (active_car_ >= garage_.size()) active_car_ = garage_.size() - 1;
+    persist();
     return true;
 }
 
 bool GameState::repair_active_car(int* repair_price, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
-        if (error) *error = "NO CAR TO REPAIR";
+        set_error(error, "NO CAR TO REPAIR");
         return false;
     }
     const int price = car->repair_cost();
     if (price <= 0) {
-        if (error) *error = "CAR IS ALREADY 100 PERCENT";
+        set_error(error, "CAR IS ALREADY 100 PERCENT");
         return false;
     }
     if (cash_ < price) {
-        if (error) *error = "NOT ENOUGH CASH TO REPAIR";
+        set_error(error, "NOT ENOUGH CASH TO REPAIR");
         return false;
     }
 
     cash_ -= price;
     car->condition = 100;
     if (repair_price) *repair_price = price;
+    persist();
     return true;
 }
 
@@ -215,33 +304,34 @@ void GameState::install_part(OwnedCar& car, const PartSpec& part) {
 bool GameState::buy_part(std::size_t part_index, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
-        if (error) *error = "BUY A CAR FIRST";
+        set_error(error, "BUY A CAR FIRST");
         return false;
     }
     if (part_index >= parts_catalog_.size()) {
-        if (error) *error = "THAT PART IS NOT AVAILABLE";
+        set_error(error, "THAT PART IS NOT AVAILABLE");
         return false;
     }
 
     const PartSpec part = parts_catalog_[part_index];
     if (cash_ < part.price) {
-        if (error) *error = "NOT ENOUGH CASH";
+        set_error(error, "NOT ENOUGH CASH");
         return false;
     }
 
     cash_ -= part.price;
     install_part(*car, part);
+    persist();
     return true;
 }
 
 bool GameState::install_spare(std::size_t spare_index, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
-        if (error) *error = "BUY A CAR FIRST";
+        set_error(error, "BUY A CAR FIRST");
         return false;
     }
     if (spare_index >= spare_parts_.size()) {
-        if (error) *error = "THAT SPARE PART IS NOT AVAILABLE";
+        set_error(error, "THAT SPARE PART IS NOT AVAILABLE");
         return false;
     }
 
@@ -257,6 +347,7 @@ bool GameState::install_spare(std::size_t spare_index, std::string* error) {
         *it = part;
         spare_parts_.push_back(removed);
     }
+    persist();
     return true;
 }
 
@@ -321,6 +412,7 @@ RaceResult GameState::settle_race(const Opponent& opponent, int wager, bool pink
         cash_ += result.cash_delta;
         apply_race_outcome(*player, result, 1);
         result.summary = result.won ? "YOU WON THE CASH RACE" : "YOU LOST THE CASH RACE";
+        persist();
         return result;
     }
 
@@ -335,6 +427,7 @@ RaceResult GameState::settle_race(const Opponent& opponent, int wager, bool pink
         else if (active_car_ >= garage_.size()) active_car_ = garage_.size() - 1;
         result.summary = "YOU LOST YOUR CAR";
     }
+    persist();
     return result;
 }
 
@@ -348,6 +441,182 @@ RaceResult GameState::race_for_pink_slip() {
     const OwnedCar* player = active_car();
     const double player_et = player ? quarter_mile_et(*player, 0.30) : 0.0;
     return settle_race(current_opponent(), 0, true, player_et);
+}
+
+bool GameState::save_to(const std::string& path, std::string* error) const {
+    if (!started_) {
+        set_error(error, "NO GAME TO SAVE");
+        return false;
+    }
+
+    const std::filesystem::path final_path(path);
+    std::error_code ec;
+    if (final_path.has_parent_path()) {
+        std::filesystem::create_directories(final_path.parent_path(), ec);
+        if (ec) {
+            set_error(error, "COULD NOT CREATE SAVE DIRECTORY: " + ec.message());
+            return false;
+        }
+    }
+
+    const std::filesystem::path temp_path = final_path.string() + ".tmp";
+    std::ofstream out(temp_path, std::ios::trunc);
+    if (!out) {
+        set_error(error, "COULD NOT OPEN SAVE FILE");
+        return false;
+    }
+
+    out << "BACKYARD_RACER_SAVE " << kSaveVersion << '\n';
+    out << "STATE " << cash_ << ' ' << reputation_ << ' ' << wins_ << ' '
+        << losses_ << ' ' << active_car_ << '\n';
+
+    out << "CLASSIFIEDS " << classifieds_.size() << '\n';
+    for (const auto& car : classifieds_) write_car(out, car);
+
+    out << "GARAGE " << garage_.size() << '\n';
+    for (const auto& owned : garage_) {
+        out << "OWNED " << std::clamp(owned.condition, 0, 100) << ' '
+            << owned.installed_parts.size() << '\n';
+        write_car(out, owned.base);
+        for (const auto& part : owned.installed_parts) write_part(out, part);
+    }
+
+    out << "SPARES " << spare_parts_.size() << '\n';
+    for (const auto& part : spare_parts_) write_part(out, part);
+    out << "END\n";
+    out.flush();
+    if (!out) {
+        set_error(error, "COULD NOT WRITE SAVE FILE");
+        out.close();
+        std::filesystem::remove(temp_path, ec);
+        return false;
+    }
+    out.close();
+
+    std::filesystem::rename(temp_path, final_path, ec);
+    if (ec) {
+        ec.clear();
+        std::filesystem::remove(final_path, ec);
+        ec.clear();
+        std::filesystem::rename(temp_path, final_path, ec);
+    }
+    if (ec) {
+        set_error(error, "COULD NOT PUBLISH SAVE FILE: " + ec.message());
+        std::filesystem::remove(temp_path, ec);
+        return false;
+    }
+    return true;
+}
+
+bool GameState::load_from(const std::string& path, std::string* error) {
+    std::ifstream in(path);
+    if (!in) {
+        set_error(error, "NO SAVE FILE");
+        return false;
+    }
+
+    std::string marker;
+    int version = 0;
+    if (!(in >> marker >> version) || marker != "BACKYARD_RACER_SAVE" || version != kSaveVersion) {
+        set_error(error, "UNSUPPORTED OR CORRUPT SAVE FILE");
+        return false;
+    }
+
+    int cash = 0, reputation = 0, wins = 0, losses = 0;
+    std::size_t active = 0;
+    if (!(in >> marker >> cash >> reputation >> wins >> losses >> active) || marker != "STATE" ||
+        cash < 0 || reputation < 0 || wins < 0 || losses < 0) {
+        set_error(error, "CORRUPT SAVE STATE");
+        return false;
+    }
+
+    std::size_t classified_count = 0;
+    if (!(in >> marker >> classified_count) || marker != "CLASSIFIEDS" ||
+        classified_count == 0 || classified_count > kMaxSavedCars) {
+        set_error(error, "CORRUPT CLASSIFIEDS DATA");
+        return false;
+    }
+    std::vector<CarSpec> classifieds;
+    classifieds.reserve(classified_count);
+    for (std::size_t i = 0; i < classified_count; ++i) {
+        CarSpec car;
+        if (!read_car(in, car) || !sane_car(car)) {
+            set_error(error, "CORRUPT CLASSIFIED CAR DATA");
+            return false;
+        }
+        classifieds.push_back(std::move(car));
+    }
+
+    std::size_t garage_count = 0;
+    if (!(in >> marker >> garage_count) || marker != "GARAGE" || garage_count > kMaxSavedCars) {
+        set_error(error, "CORRUPT GARAGE DATA");
+        return false;
+    }
+    std::vector<OwnedCar> garage;
+    garage.reserve(garage_count);
+    for (std::size_t i = 0; i < garage_count; ++i) {
+        int condition = 0;
+        std::size_t installed_count = 0;
+        if (!(in >> marker >> condition >> installed_count) || marker != "OWNED" ||
+            condition < 0 || condition > 100 || installed_count > kMaxSavedParts) {
+            set_error(error, "CORRUPT OWNED CAR DATA");
+            return false;
+        }
+        OwnedCar owned;
+        owned.condition = condition;
+        if (!read_car(in, owned.base) || !sane_car(owned.base)) {
+            set_error(error, "CORRUPT GARAGE CAR DATA");
+            return false;
+        }
+        owned.installed_parts.reserve(installed_count);
+        for (std::size_t part_index = 0; part_index < installed_count; ++part_index) {
+            PartSpec part;
+            if (!read_part(in, part) || !sane_part(part)) {
+                set_error(error, "CORRUPT INSTALLED PART DATA");
+                return false;
+            }
+            owned.installed_parts.push_back(std::move(part));
+        }
+        garage.push_back(std::move(owned));
+    }
+
+    std::size_t spare_count = 0;
+    if (!(in >> marker >> spare_count) || marker != "SPARES" || spare_count > kMaxSavedParts) {
+        set_error(error, "CORRUPT SPARES DATA");
+        return false;
+    }
+    std::vector<PartSpec> spares;
+    spares.reserve(spare_count);
+    for (std::size_t i = 0; i < spare_count; ++i) {
+        PartSpec part;
+        if (!read_part(in, part) || !sane_part(part)) {
+            set_error(error, "CORRUPT SPARE PART DATA");
+            return false;
+        }
+        spares.push_back(std::move(part));
+    }
+
+    if (!(in >> marker) || marker != "END") {
+        set_error(error, "SAVE FILE IS INCOMPLETE");
+        return false;
+    }
+    if (!garage.empty() && active >= garage.size()) {
+        set_error(error, "SAVE FILE HAS INVALID ACTIVE CAR");
+        return false;
+    }
+    if (garage.empty()) active = 0;
+
+    seed_catalogs();
+    classifieds_ = std::move(classifieds);
+    garage_ = std::move(garage);
+    spare_parts_ = std::move(spares);
+    active_car_ = active;
+    cash_ = cash;
+    reputation_ = reputation;
+    wins_ = wins;
+    losses_ = losses;
+    started_ = true;
+    return true;
 }
 
 } // namespace backyard_racer
