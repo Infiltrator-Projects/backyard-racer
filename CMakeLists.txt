@@ -27,7 +27,10 @@ target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
 set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
 
-add_executable(backyard-racer src/main.cpp)
+# Keep the race-lane top-down sprites while the presentation screens use the
+# isometric CC0 vehicle pass. main_art_pass.cpp wraps main.cpp without touching
+# gameplay state or the Common-backed timing path.
+add_executable(backyard-racer src/main_art_pass.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-racer PRIVATE backyard-gameplay InfiltratrCommon::Portable X11::X11)
