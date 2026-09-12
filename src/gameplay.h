@@ -2,7 +2,6 @@
 #pragma once
 
 #include <cstddef>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,11 +41,13 @@ struct CarSpec {
 struct OwnedCar {
     CarSpec base;
     std::vector<PartSpec> installed_parts;
+    int condition = 100;
 
     int horsepower() const;
     double traction() const;
     double shift_factor() const;
     int resale_value() const;
+    int repair_cost() const;
 };
 
 struct Opponent {
@@ -62,6 +63,8 @@ struct RaceResult {
     double player_et = 0.0;
     double opponent_et = 0.0;
     int cash_delta = 0;
+    int reputation_delta = 0;
+    int wear = 0;
     std::string summary;
 };
 
@@ -71,6 +74,9 @@ public:
 
     bool started() const { return started_; }
     int cash() const { return cash_; }
+    int reputation() const { return reputation_; }
+    int wins() const { return wins_; }
+    int losses() const { return losses_; }
     const std::vector<CarSpec>& classifieds() const { return classifieds_; }
     const std::vector<PartSpec>& parts_catalog() const { return parts_catalog_; }
     const std::vector<PartSpec>& spare_parts() const { return spare_parts_; }
@@ -82,6 +88,8 @@ public:
     void next_car();
 
     bool buy_car(std::size_t listing_index, std::string* error = nullptr);
+    bool sell_active_car(int* sale_price = nullptr, std::string* error = nullptr);
+    bool repair_active_car(int* repair_price = nullptr, std::string* error = nullptr);
     bool buy_part(std::size_t part_index, std::string* error = nullptr);
     bool install_spare(std::size_t spare_index, std::string* error = nullptr);
 
@@ -94,16 +102,18 @@ public:
 private:
     bool started_ = false;
     int cash_ = 0;
+    int reputation_ = 0;
+    int wins_ = 0;
+    int losses_ = 0;
     std::vector<CarSpec> classifieds_;
     std::vector<PartSpec> parts_catalog_;
     std::vector<PartSpec> spare_parts_;
     std::vector<OwnedCar> garage_;
     std::size_t active_car_ = 0;
-    std::size_t opponent_index_ = 0;
 
     void seed_catalogs();
-    void advance_opponent();
     void install_part(OwnedCar& car, const PartSpec& part);
+    void apply_race_outcome(OwnedCar& car, RaceResult& result, int win_reputation);
 };
 
 std::string car_display_name(const CarSpec& car);
