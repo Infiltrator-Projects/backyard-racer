@@ -4,6 +4,7 @@
 #include "pixel_app.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 static void backyard_surface_blit_scaled_smooth(InfiltratrSurface* destination,
                                                  const InfiltratrSurface* source,
@@ -46,7 +47,7 @@ static void backyard_surface_blit_scaled_smooth(InfiltratrSurface* destination,
 }
 
 namespace backyard_racer::scene_assets {
-inline constexpr const IndexedAsset& garage_hd = garage;
+#include "garage_hd_asset.inc"
 #include "falcon_hd_asset.inc"
 #include "mustang_hd_asset.inc"
 }
