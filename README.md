@@ -14,7 +14,7 @@ The current game uses Common for canonical project/application identity, string 
 
 ## Current playable loop
 
-Version `0.6.0-dev` now has a complete basic garage-to-race loop, persistent progression and a first real art pass.
+Version `0.6.0-dev` now has a complete basic garage-to-race loop, persistent progression and a real CC0 art pass.
 
 The current loop is:
 
@@ -23,10 +23,11 @@ The current loop is:
 Implemented now:
 
 - rotating used-car classifieds;
-- mixed CC0 isometric used-car artwork instead of programmer rectangles/top-down cars on presentation screens;
+- mixed CC0 isometric used-car artwork with multiple body shapes and colour families instead of programmer rectangles/top-down cars on presentation screens;
 - multiple owned cars and active-car selection;
 - cash economy;
-- carburettor, intake, exhaust, camshaft, transmission and tyre upgrades;
+- carburettor, intake, exhaust, camshaft, transmission, tyre and full engine upgrades;
+- engine swaps that materially change horsepower and are retained through saves just like the smaller bolt-on parts;
 - upgrades that alter horsepower, traction and shift performance;
 - replaced parts retained in the player's parts bin;
 - Street Rod-style diner opponents and reputation ladder;
@@ -36,7 +37,7 @@ Implemented now:
 - race wear, repair cost and resale value;
 - automatic persistent saves, including garage, active car, installed parts, spare parts, cash, reputation, record and classifieds state;
 - Continue now survives quitting and reopening the game;
-- gameplay save/load and race-session smoke tests in CI;
+- gameplay save/load, engine-upgrade and race-session smoke tests in CI;
 - native X11 double-buffered interface.
 
 Save data follows XDG conventions where available and defaults to `~/.local/share/backyard-racer/save_v1.txt` on a typical Linux desktop. `BACKYARD_RACER_SAVE` can override the path for testing or portable setups.
@@ -45,7 +46,7 @@ The garage mechanics are intentionally modular so the quick auto-install flow ca
 
 ## Art sources
 
-The drag strip uses Kenney's CC0 Racing Pack while the menu, classifieds, garage and diner use Kenney's CC0 Isometric Tiles Vehicles art. The classifieds intentionally mix red, blue, green, silver and black presentation variants. See [`assets/README.md`](assets/README.md) for exact provenance and the pinned reproducible mirror commit.
+The drag strip uses Kenney's CC0 Racing Pack while the menu, classifieds, garage and diner use Kenney's CC0 Isometric Tiles Vehicles art. The classifieds intentionally mix red, blue, green, silver and black variants plus multiple sedan/pickup silhouettes from the same pack. See [`assets/README.md`](assets/README.md) for exact provenance and the pinned reproducible mirror commit.
 
 ## Upstream acceleration
 
