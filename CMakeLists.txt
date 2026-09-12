@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
 
-project(BackyardRacer VERSION 0.1.0 LANGUAGES C CXX)
+project(BackyardRacer VERSION 0.2.0 LANGUAGES C CXX)
 
 include(FetchContent)
 
@@ -19,11 +19,24 @@ FetchContent_MakeAvailable(InfiltratrCommon)
 
 find_package(X11 REQUIRED)
 
+add_library(backyard-gameplay STATIC src/gameplay.cpp)
+target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
+set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
+
 add_executable(backyard-racer src/main.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
-target_link_libraries(backyard-racer PRIVATE InfiltratrCommon::Portable X11::X11)
+target_link_libraries(backyard-racer PRIVATE backyard-gameplay InfiltratrCommon::Portable X11::X11)
+
+add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
+target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
+
+enable_testing()
+add_test(NAME gameplay-smoke COMMAND backyard-gameplay-test)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    target_compile_options(backyard-gameplay PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(backyard-racer PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(backyard-gameplay-test PRIVATE -Wall -Wextra -Wpedantic)
 endif()
