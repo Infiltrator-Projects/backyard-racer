@@ -70,6 +70,8 @@ struct RaceResult {
 
 class GameState {
 public:
+    GameState();
+
     void new_game();
 
     bool started() const { return started_; }
@@ -99,6 +101,10 @@ public:
     RaceResult race_for_cash(int wager);
     RaceResult race_for_pink_slip();
 
+    bool save_to(const std::string& path, std::string* error = nullptr) const;
+    bool load_from(const std::string& path, std::string* error = nullptr);
+    static std::string default_save_path();
+
     static double quarter_mile_et(const OwnedCar& car, double reaction_seconds);
 
 private:
@@ -116,6 +122,7 @@ private:
     void seed_catalogs();
     void install_part(OwnedCar& car, const PartSpec& part);
     void apply_race_outcome(OwnedCar& car, RaceResult& result, int win_reputation);
+    void persist() const;
 };
 
 std::string car_display_name(const CarSpec& car);
