@@ -18,7 +18,7 @@ const InfiltratrProjectInfo& project_info() {
     static const InfiltratrProjectInfo info = {
         sizeof(InfiltratrProjectInfo), INFILTRATR_PROJECT_INFO_ABI,
         "Backyard Racer", "backyard-racer", "au.com.infiltrator.backyard-racer",
-        "0.3.0-dev", "Infiltrator-Projects/backyard-racer", "development",
+        "0.4.0-dev", "Infiltrator-Projects/backyard-racer", "development",
         "Shannon Smith", "https://github.com/Infiltrator-Projects/backyard-racer",
         "GPL-3.0-or-later", "Street-rod garage and racing game", "backyard-racer",
         "Copyright (c) 2026 Shannon Smith"
@@ -150,7 +150,7 @@ private:
         const bool hover = enabled && r.contains(mouse_x_, mouse_y_);
         fill(r, hover ? 55 : 24, hover ? 58 : 26, hover ? 62 : 29);
         outline(r, enabled ? 198 : 86, enabled ? 205 : 88, enabled ? 211 : 90, 2);
-        text(x + 16, y + h / 2 + 5, label, enabled ? 235 : 110, enabled ? 236 : 112, enabled ? 228 : 114);
+        text(x + 14, y + h / 2 + 5, label, enabled ? 235 : 110, enabled ? 236 : 112, enabled ? 228 : 114);
         return r;
     }
 
@@ -158,7 +158,10 @@ private:
         fill({0, 0, width_, 78}, 17, 18, 20);
         big_text(26, 34, "BACKYARD RACER", 205, 211, 216);
         text(26, 60, title, 190, 192, 194);
-        text(width_ - 230, 35, "CASH " + std::to_string(game_.cash()), 220, 220, 205);
+        text(width_ - 430, 34,
+             "CASH $" + std::to_string(game_.cash()) + "   REP " + std::to_string(game_.reputation()) +
+             "   W " + std::to_string(game_.wins()) + " L " + std::to_string(game_.losses()),
+             220, 220, 205);
     }
 
     void draw_car(int cx, int base_y, int w, unsigned r, unsigned g, unsigned b) {
@@ -209,7 +212,7 @@ private:
             outline(card, 35, 35, 35, 2);
             text(card.x + 14, card.y + 27, car_display_name(cars[i]), 25, 25, 25);
             text(card.x + 14, card.y + 54,
-                 "PRICE " + std::to_string(cars[i].price) + "   HP " + std::to_string(cars[i].horsepower), 50, 50, 50);
+                 "PRICE $" + std::to_string(cars[i].price) + "   HP " + std::to_string(cars[i].horsepower), 50, 50, 50);
             text(card.x + 14, card.y + 80, "WEIGHT " + std::to_string(cars[i].weight_lb) + " LB", 70, 70, 70);
         }
         button(width_ - 210, height_ - 58, 170, 38, "GARAGE");
@@ -224,14 +227,18 @@ private:
 
         if (car) {
             draw_car(width_ / 2, height_ * 67 / 100 - 15, std::min(620, width_ / 2), 151, 39, 36);
-            big_text(45, 135, car_display_name(car->base), 235, 236, 228);
-            text(45, 165, "HP " + std::to_string(car->horsepower()) + "   WEIGHT " +
+            big_text(45, 128, car_display_name(car->base), 235, 236, 228);
+            text(45, 158, "HP " + std::to_string(car->horsepower()) + "   WEIGHT " +
                  std::to_string(car->base.weight_lb) + " LB", 225, 225, 214);
             std::ostringstream tr;
             tr << std::fixed << std::setprecision(2) << car->traction();
-            text(45, 190, "TRACTION " + tr.str() + "   INSTALLED " +
-                 std::to_string(car->installed_parts.size()) + "   SPARES " +
-                 std::to_string(game_.spare_parts().size()), 225, 225, 214);
+            text(45, 184, "TRACTION " + tr.str() + "   CONDITION " + std::to_string(car->condition) + "%", 225, 225, 214);
+            text(45, 210, "SELL VALUE $" + std::to_string(car->resale_value()) +
+                 "   REPAIR $" + std::to_string(car->repair_cost()) +
+                 "   SPARES " + std::to_string(game_.spare_parts().size()), 225, 225, 214);
+
+            button(45, 232, 150, 36, "REPAIR", car->repair_cost() > 0);
+            button(210, 232, 150, 36, "SELL CAR");
 
             const int list_x = width_ - 330;
             text(list_x, 120, "INSTALLED PARTS", 235, 236, 228);
@@ -310,18 +317,20 @@ private:
 
     void draw_diner() {
         fill({0, 0, width_, height_}, 34, 29, 27);
-        header("THE DINER - FIND A RACE");
+        header("THE DINER - REPUTATION LADDER");
         const Opponent opp = game_.current_opponent();
-        fill({65, 130, width_ - 130, 300}, 19, 20, 21);
-        outline({65, 130, width_ - 130, 300}, 165, 168, 170, 2);
-        big_text(100, 180, opp.name + " WANTS TO RACE", 232, 232, 220);
-        text(100, 220, car_display_name(opp.car.base), 210, 210, 200);
-        text(100, 250, "HP " + std::to_string(opp.car.horsepower()) + "   WEIGHT " +
+        fill({65, 125, width_ - 130, 330}, 19, 20, 21);
+        outline({65, 125, width_ - 130, 330}, 165, 168, 170, 2);
+        big_text(100, 175, opp.name + " WANTS TO RACE", 232, 232, 220);
+        text(100, 212, car_display_name(opp.car.base), 210, 210, 200);
+        text(100, 242, "HP " + std::to_string(opp.car.horsepower()) + "   WEIGHT " +
              std::to_string(opp.car.base.weight_lb) + " LB", 210, 210, 200);
-        text(100, 292, "CHOOSE THE STAKES", 190, 192, 194);
-        button(100, 325, 180, 48, "RACE FOR $100");
-        button(300, 325, 180, 48, "RACE FOR $250");
-        button(500, 325, 210, 48, "RACE FOR PINKS");
+        text(100, 274, "YOUR REP " + std::to_string(game_.reputation()) +
+             "   RECORD " + std::to_string(game_.wins()) + "-" + std::to_string(game_.losses()), 190, 192, 194);
+        text(100, 302, "WIN RACES TO CLIMB: EDDIE -> MICK -> RAY -> THE KING", 170, 172, 174);
+        button(100, 342, 180, 48, "RACE FOR $100");
+        button(300, 342, 180, 48, "RACE FOR $250");
+        button(500, 342, 210, 48, "RACE FOR PINKS");
         button(width_ - 200, height_ - 58, 165, 38, "GARAGE");
         text(70, height_ - 34, message_, 200, 200, 190);
     }
@@ -330,17 +339,20 @@ private:
         fill({0, 0, width_, height_}, 23, 24, 25);
         header("RACE RESULT");
         const bool won = last_race_.won;
-        big_text(90, 165, last_race_.summary, won ? 120 : 220, won ? 210 : 95, won ? 120 : 80);
+        big_text(90, 155, last_race_.summary, won ? 120 : 220, won ? 210 : 95, won ? 120 : 80);
         if (last_race_.valid) {
             std::ostringstream p, o;
             p << std::fixed << std::setprecision(2) << last_race_.player_et;
             o << std::fixed << std::setprecision(2) << last_race_.opponent_et;
-            text(90, 220, "YOUR ET      " + p.str() + " SEC", 225, 225, 214);
-            text(90, 250, "OPPONENT ET  " + o.str() + " SEC", 225, 225, 214);
+            text(90, 210, "YOUR ET      " + p.str() + " SEC", 225, 225, 214);
+            text(90, 240, "OPPONENT ET  " + o.str() + " SEC", 225, 225, 214);
             if (!last_race_.pink_slip)
-                text(90, 290, "CASH CHANGE  " + std::to_string(last_race_.cash_delta), 225, 225, 214);
+                text(90, 275, "CASH CHANGE  " + std::to_string(last_race_.cash_delta), 225, 225, 214);
+            const std::string rep_prefix = last_race_.reputation_delta >= 0 ? "+" : "";
+            text(90, 305, "REPUTATION   " + rep_prefix + std::to_string(last_race_.reputation_delta), 225, 225, 214);
+            text(90, 335, "RACE WEAR    -" + std::to_string(last_race_.wear) + "% CONDITION", 225, 225, 214);
         }
-        button(90, 350, 220, 50, "BACK TO GARAGE");
+        button(90, 385, 220, 50, "BACK TO GARAGE");
     }
 
     void draw_settings() {
@@ -414,6 +426,26 @@ private:
         }
 
         if (screen_ == Screen::Garage) {
+            if (game_.active_car() && Rect{45, 232, 150, 36}.contains(x, y)) {
+                int cost = 0;
+                std::string error;
+                if (game_.repair_active_car(&cost, &error))
+                    message_ = "CAR REPAIRED TO 100 PERCENT FOR $" + std::to_string(cost);
+                else
+                    message_ = error;
+                return;
+            }
+            if (game_.active_car() && Rect{210, 232, 150, 36}.contains(x, y)) {
+                int price = 0;
+                std::string error;
+                if (game_.sell_active_car(&price, &error)) {
+                    message_ = "CAR SOLD FOR $" + std::to_string(price);
+                    if (game_.garage().empty()) screen_ = Screen::Classifieds;
+                } else {
+                    message_ = error;
+                }
+                return;
+            }
             if (Rect{35, height_ - 66, 180, 42}.contains(x, y)) screen_ = Screen::Classifieds;
             else if (Rect{230, height_ - 66, 170, 42}.contains(x, y) && game_.active_car()) screen_ = Screen::Parts;
             else if (Rect{415, height_ - 66, 150, 42}.contains(x, y) && game_.active_car()) screen_ = Screen::Diner;
@@ -457,13 +489,13 @@ private:
         }
 
         if (screen_ == Screen::Diner) {
-            if (Rect{100, 325, 180, 48}.contains(x, y)) {
+            if (Rect{100, 342, 180, 48}.contains(x, y)) {
                 last_race_ = game_.race_for_cash(100);
                 screen_ = Screen::Result;
-            } else if (Rect{300, 325, 180, 48}.contains(x, y)) {
+            } else if (Rect{300, 342, 180, 48}.contains(x, y)) {
                 last_race_ = game_.race_for_cash(250);
                 screen_ = Screen::Result;
-            } else if (Rect{500, 325, 210, 48}.contains(x, y)) {
+            } else if (Rect{500, 342, 210, 48}.contains(x, y)) {
                 last_race_ = game_.race_for_pink_slip();
                 screen_ = Screen::Result;
             } else if (Rect{width_ - 200, height_ - 58, 165, 38}.contains(x, y)) {
@@ -473,7 +505,7 @@ private:
         }
 
         if (screen_ == Screen::Result) {
-            if (Rect{90, 350, 220, 50}.contains(x, y)) {
+            if (Rect{90, 385, 220, 50}.contains(x, y)) {
                 message_ = last_race_.summary;
                 screen_ = game_.garage().empty() ? Screen::Classifieds : Screen::Garage;
             }
