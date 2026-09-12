@@ -5,10 +5,6 @@
 #include "race_session.h"
 #include "scene_embedded_assets.h"
 
-namespace backyard_racer::scene_assets {
-#include "mustang_hd_asset.inc"
-}
-
 #include <zlib.h>
 
 #include <algorithm>
@@ -185,45 +181,6 @@ SurfaceOwner scaled_copy(const SurfaceOwner& source, int width, int height) {
     return result;
 }
 
-SurfaceOwner scaled_copy_linear(const SurfaceOwner& source, int width, int height) {
-    SurfaceOwner result(width, height);
-    result.clear(rgba(0, 0, 0, 0));
-    if (source.empty() || width <= 0 || height <= 0) return result;
-
-    const double sx = static_cast<double>(source.width()) / static_cast<double>(width);
-    const double sy = static_cast<double>(source.height()) / static_cast<double>(height);
-    for (int y = 0; y < height; ++y) {
-        const double fy = (static_cast<double>(y) + 0.5) * sy - 0.5;
-        const double fy_floor = std::floor(fy);
-        const int y0 = std::clamp(static_cast<int>(fy_floor), 0, source.height() - 1);
-        const int y1 = std::min(y0 + 1, source.height() - 1);
-        const double ty = std::clamp(fy - fy_floor, 0.0, 1.0);
-        for (int x = 0; x < width; ++x) {
-            const double fx = (static_cast<double>(x) + 0.5) * sx - 0.5;
-            const double fx_floor = std::floor(fx);
-            const int x0 = std::clamp(static_cast<int>(fx_floor), 0, source.width() - 1);
-            const int x1 = std::min(x0 + 1, source.width() - 1);
-            const double tx = std::clamp(fx - fx_floor, 0.0, 1.0);
-            const Color c00 = infiltratr_surface_get_pixel(&source.get(), x0, y0);
-            const Color c10 = infiltratr_surface_get_pixel(&source.get(), x1, y0);
-            const Color c01 = infiltratr_surface_get_pixel(&source.get(), x0, y1);
-            const Color c11 = infiltratr_surface_get_pixel(&source.get(), x1, y1);
-            auto mix = [&](std::uint8_t a, std::uint8_t b, std::uint8_t c, std::uint8_t d) {
-                const double top = static_cast<double>(a) * (1.0 - tx) + static_cast<double>(b) * tx;
-                const double bottom = static_cast<double>(c) * (1.0 - tx) + static_cast<double>(d) * tx;
-                return static_cast<std::uint8_t>(std::clamp(
-                    static_cast<int>(std::lround(top * (1.0 - ty) + bottom * ty)), 0, 255));
-            };
-            infiltratr_surface_set_pixel(&result.get(), x, y,
-                rgba(mix(c00.r, c10.r, c01.r, c11.r),
-                     mix(c00.g, c10.g, c01.g, c11.g),
-                     mix(c00.b, c10.b, c01.b, c11.b),
-                     mix(c00.a, c10.a, c01.a, c11.a)));
-        }
-    }
-    return result;
-}
-
 std::array<std::uint8_t, 7> glyph_rows(char c) {
     if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
 #define G(a,b,c,d,e,f,g) return {a,b,c,d,e,f,g}
@@ -295,5 +252,3 @@ public:
                             static_cast<int>(i) * cell_w_ + x, y, rgba(255, 255, 255));
                     }
                 }
-            }
-        }
