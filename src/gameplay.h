@@ -13,7 +13,8 @@ enum class PartType {
     Exhaust,
     Transmission,
     Tires,
-    Camshaft
+    Camshaft,
+    Engine
 };
 
 struct PartSpec {
