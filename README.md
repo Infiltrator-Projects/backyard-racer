@@ -1,6 +1,6 @@
 # Backyard Racer
 
-A native street-rod garage and racing game inspired by the hands-on car building, classifieds, street racing and pink-slip progression of the classic Street Rod games.
+A native street-rod garage and racing game built around the hands-on car building, classifieds, street racing and pink-slip progression of the classic Street Rod games.
 
 ## Shared foundation
 
@@ -10,24 +10,37 @@ The build is pinned to Infiltratr Common **v1.15.7**, exact release commit:
 
 `e9b747c7c0530590fbba1f57788e046203ef8c4e`
 
-The current game uses Common for:
+The current game uses Common for canonical project/application identity, string handling used by the command-line interface, and checked framebuffer/XImage allocation arithmetic. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
 
-- canonical `InfiltratrProjectInfo` application identity;
-- Common string comparison for command-line handling;
-- checked `size_t` multiplication for framebuffer storage;
-- checked `size_t` multiplication for XImage storage.
+## Current playable loop
 
-As the game grows, additional product-neutral mechanics already owned by Common (parsing, UTF-8 validation, timing/cadence, localisation, formatting and generic POSIX helpers) should be consumed from Common when the game actually needs them rather than reimplemented locally.
+Version `0.2.0-dev` moves the project beyond the menu/garage placeholder. A new game now starts with cash and opens the used-car classifieds.
 
-Game-specific rendering, X11 input/window integration, menu layout, garage state, cars, economy and racing remain Backyard Racer-owned.
+The current loop is:
 
-## Current milestone
+`New Game -> Classifieds -> Buy Car -> Garage -> Buy/Install Parts -> Diner -> Cash or Pink-Slip Race -> Garage`
 
-- Native X11 window and framebuffer renderer
-- Main menu: New Game / Continue / Settings / Quit
-- New Game opens the first garage placeholder
-- Escape returns to the menu; Escape from the menu quits
-- Continue remains disabled until save-game support exists
+Implemented now:
+
+- rotating used-car classifieds;
+- multiple owned cars and active-car selection;
+- cash economy;
+- carburettor, intake, exhaust, camshaft, transmission and tyre upgrades;
+- upgrades that alter horsepower, traction and shift performance;
+- Street Rod-style diner opponents;
+- quarter-mile result simulation based on power-to-weight, traction, shifting and reaction time;
+- $100 and $250 cash wagers;
+- pink-slip races where winning adds the opponent car to your garage and losing removes yours;
+- gameplay-core smoke tests in CI;
+- native X11 interface and the existing New Game / Continue / Settings / Quit shell.
+
+The garage mechanics are intentionally modular so the quick auto-install flow can later gain the classic hands-on nut/bolt interaction without replacing the underlying car/part state model.
+
+## Upstream acceleration
+
+Rather than redesigning known Street Rod mechanics from scratch, development is using public Street Rod-related engineering work as reference material where appropriate. See [`docs/UPSTREAM.md`](docs/UPSTREAM.md) for the current inventory and licence treatment.
+
+Most importantly, the GPL-2.0-or-later **StreetRod3Classic** source provides proven garage/newspaper/parts/player/opponent/racing architecture that can be ported into this GPL-3.0-or-later project without inheriting its obsolete SDL/OpenGL platform layer wholesale.
 
 ## Build on Linux
 
@@ -45,13 +58,10 @@ make run
 
 The executable is created at `build/backyard-racer`.
 
-Useful metadata commands:
+Useful checks:
 
 ```sh
+ctest --test-dir build --output-on-failure
 ./build/backyard-racer --version
 ./build/backyard-racer --project-info
 ```
-
-## Direction
-
-The intended core loop is classifieds -> buy a car -> garage work -> parts/tuning -> street meet -> race for cash or pink slips -> improve the car and reputation.
