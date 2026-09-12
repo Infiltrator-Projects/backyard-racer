@@ -2,9 +2,9 @@
 // Pixel renderer kept split while the architecture cutover lands.
 #include "scene_embedded_assets.h"
 namespace backyard_racer::scene_assets {
-#include "garage_hd_asset.inc"
+inline constexpr const IndexedAsset& garage_hd = garage;
+#include "falcon_hd_asset.inc"
 #include "mustang_hd_asset.inc"
-inline constexpr const IndexedAsset& falcon_hd = falcon;
 }
 
 #include "pixel_app_part1.inc"
