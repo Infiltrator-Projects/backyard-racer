@@ -79,7 +79,7 @@ void split_car_art(CarArt& art) {
     art.body.clear(rgba(0, 0, 0, 0));
     art.details.clear(rgba(0, 0, 0, 0));
 
-    const int source_radius = std::max(2, static_cast<int>(std::lround(width * art.wheel_r * 0.88)));
+    const int source_radius = std::max(2, static_cast<int>(std::lround(height * art.wheel_r)));
     const int wheel_size = source_radius * 2 + 1;
     art.rear_wheel.resize(wheel_size, wheel_size);
     art.front_wheel.resize(wheel_size, wheel_size);
@@ -204,7 +204,7 @@ struct PixelApp::Impl {
         falcon.rear_x = 0.225;
         falcon.front_x = 0.775;
         falcon.wheel_y = 0.80;
-        falcon.wheel_r = 0.105;
+        falcon.wheel_r = 0.13;
         falcon.paint_min = 120;
         falcon.paint_max = 248;
         split_car_art(falcon);
@@ -212,11 +212,11 @@ struct PixelApp::Impl {
 
         CarArt mustang;
         mustang.id = "mustang65";
-        mustang.source = load_indexed_asset(scene_assets::mustang);
-        mustang.rear_x = 0.245;
+        mustang.source = load_indexed_asset(scene_assets::mustang_hd);
+        mustang.rear_x = 0.207;
         mustang.front_x = 0.765;
-        mustang.wheel_y = 0.82;
-        mustang.wheel_r = 0.105;
+        mustang.wheel_y = 0.75;
+        mustang.wheel_r = 0.175;
         mustang.paint_min = 70;
         mustang.paint_max = 205;
         split_car_art(mustang);
