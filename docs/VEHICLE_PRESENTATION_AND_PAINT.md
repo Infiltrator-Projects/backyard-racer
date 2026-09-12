@@ -10,9 +10,11 @@ The garage is one persistent authored background scene. The selected car is neve
 
 Changing cars changes only the vehicle layers and vehicle state. It must never substitute a different garage image.
 
-The garage door is permanently open for the vehicle-presentation sequence. Whenever a car is presented in the garage, the game itself animates that independent vehicle object; movement is never pre-rendered into a composed screenshot or baked into the garage background.
+The garage door is open for vehicle entry/exit. Whenever a car changes the physical occupancy of the garage, the game itself animates that independent vehicle object; movement is never pre-rendered into a composed screenshot or baked into the garage background.
 
 There is no visible driver.
+
+The key state is **which car is physically present in the garage**, not merely which car is selected in data. A car must not repeatedly drive in just because the garage screen is reopened while that same car is already parked there.
 
 ## Garage background
 
@@ -20,7 +22,7 @@ The garage background is a single reusable scene asset and should look close to 
 
 The background owns the environment only: walls, the open garage door, ceiling, lights, shelves, benches, tools, cabinets, floor, stains, fixed-object shadows and other workshop dressing.
 
-It must not contain a vehicle, vehicle shadow, vehicle-specific paint colour or anything that makes the background specific to the currently selected car.
+It must not contain a vehicle, vehicle shadow, vehicle-specific paint colour or anything that makes the background specific to the currently presented car.
 
 The exact same garage background remains visible when a car is purchased, when a car arrives, while it is parked, while it leaves, while another car arrives and while the garage is temporarily empty between cars.
 
@@ -78,29 +80,86 @@ The colour transformation must preserve the grey master's luminance so shadows, 
 
 The renderer must never tint tyres, windows, chrome, lamps or trim when body paint changes.
 
+## Garage occupancy state
+
+The garage presentation has an explicit physical occupancy state:
+
+- **empty garage** — no vehicle is currently parked in the scene;
+- **occupied garage** — one specific owned vehicle is physically parked in the scene;
+- **transitioning** — a vehicle is driving out or driving in.
+
+Only one car can physically occupy the garage presentation at a time.
+
+Opening or returning to the garage does not automatically trigger an arrival animation. If the same car is already physically parked there, it remains parked.
+
+A drive-in/drive-out sequence is triggered only when garage occupancy changes.
+
 ## Buying a car from the newspaper
 
-Buying a car from Classifieds/Newspaper has a mandatory in-game presentation sequence:
+Buying from Classifieds/Newspaper behaves differently depending on whether the garage is currently empty or occupied.
+
+### First car / empty garage
+
+If there is no car currently occupying the garage:
 
 1. complete the purchase and create the owned-car state, including its persistent factory paint colour;
-2. transition to the garage while keeping the one permanent garage background;
-3. initially show the garage with no car parked;
-4. place the purchased car completely off-screen to the right;
-5. the running game advances the car's X position frame by frame from right to left;
-6. the wheels rotate forward according to the actual distance travelled;
-7. there is no driver visible;
-8. the car decelerates into the fixed parked position;
-9. wheel rotation stops exactly when the car stops;
-10. garage controls become fully active with the new car parked.
+2. transition to the unchanged empty garage background;
+3. place the purchased car completely off-screen to the right;
+4. the running game advances the car's X position frame by frame from right to left;
+5. the wheels rotate forwards according to actual distance travelled;
+6. there is no driver visible;
+7. the car decelerates into the fixed parked position;
+8. wheel rotation stops exactly when the car stops;
+9. the garage occupancy becomes that car and normal garage controls become active.
 
-This is runtime game animation. It must not be represented by a pre-drawn image of a car already sitting in the garage.
+There is no outgoing-car animation because the garage was empty.
+
+### Buying another car while one is already parked
+
+If a car already physically occupies the garage when another car is purchased:
+
+1. complete the purchase and create the new owned-car state, including its persistent factory paint colour;
+2. keep the exact same garage background on screen;
+3. the currently parked car reverses from left to right toward the open garage door;
+4. its wheels rotate backwards according to actual reverse distance travelled;
+5. it continues until completely off-screen to the right;
+6. the garage is briefly empty;
+7. the newly purchased car begins completely off-screen to the right;
+8. it drives forwards from right to left into the fixed parked position;
+9. its wheels rotate forwards according to actual distance travelled;
+10. it decelerates and stops;
+11. garage occupancy changes to the newly purchased car and normal controls become active.
+
+The old car remains owned; it has merely left the physical garage presentation so the new car can enter.
+
+This entire sequence is runtime game animation. It must not be represented by a pre-drawn image or video containing both cars or a car already sitting in the garage.
+
+## Moving/switching another owned car into the garage
+
+If the player asks to bring a different already-owned car into the garage while another car is physically parked there, the same swap rule applies:
+
+1. current parked car reverses left-to-right out through the open door;
+2. wheels rotate backwards from signed travel distance;
+3. current car becomes fully off-screen;
+4. the garage is briefly empty;
+5. the requested car begins fully off-screen right;
+6. requested car drives right-to-left into the same parked position;
+7. wheels rotate forwards from signed travel distance;
+8. requested car decelerates and stops;
+9. garage occupancy becomes the requested car.
+
+If the garage is empty, only the incoming half of that sequence occurs.
+
+If the requested car is already physically parked in the garage, no movement occurs.
+
+The visual model does not flip direction merely to reverse. It retains its normal side orientation; rightward movement is reverse motion and leftward movement is forward motion.
 
 ## Runtime garage compositing order
 
 For each complete rendered frame, the intended garage composition is:
 
 1. permanent garage background;
-2. vehicle ground/contact shadow at the current vehicle position;
+2. vehicle ground/contact shadow at the current vehicle position, if a vehicle is visible;
 3. tinted neutral-grey body at the current vehicle position;
 4. independently rotated front and rear wheels;
 5. fixed vehicle details such as chrome, glass, lights, badges and trim;
@@ -108,15 +167,23 @@ For each complete rendered frame, the intended garage composition is:
 
 The complete vehicle visual object translates as one unit; wheel angle changes independently according to travel.
 
-## Arrival motion
+## Vehicle motion
 
 For a vehicle entering the garage:
 
 1. start fully off-screen to the right;
 2. travel right-to-left toward the fixed parked X position;
-3. rotate both wheels according to linear distance travelled and effective wheel radius;
+3. rotate both wheels forwards according to linear distance travelled and effective wheel radius;
 4. decelerate naturally into the parked position;
 5. stop wheel rotation when linear movement reaches zero.
+
+For a vehicle leaving the garage:
+
+1. start at the fixed parked position;
+2. move left-to-right in reverse toward the open garage door;
+3. rotate both wheels backwards according to reverse distance travelled;
+4. continue until the whole vehicle is off-screen right;
+5. remove that vehicle from the visible garage composition.
 
 Wheel angle is derived from distance travelled rather than an arbitrary looping timer so the tyres cannot visibly slide across the floor.
 
@@ -124,28 +191,9 @@ Conceptually:
 
 `wheel_angle += distance_travelled / wheel_radius`
 
-with direction preserved. A negative travel delta reverses wheel rotation.
+with signed distance preserving forward/reverse rotation direction.
 
-## Switching owned cars
-
-Switching cars is also a mandatory runtime animation and uses the same permanent garage background.
-
-The sequence is:
-
-1. current car begins at the parked position;
-2. current car reverses from left to right toward the open garage door;
-3. its wheels rotate backwards according to actual reverse distance travelled;
-4. current car continues until completely off-screen to the right;
-5. for a short transition the same garage is visible empty;
-6. `GameState` selects the next owned car;
-7. the next car begins completely off-screen to the right;
-8. the next car drives right-to-left into the same parked position;
-9. its wheels rotate forwards according to actual distance travelled;
-10. it decelerates, stops, and its wheels stop with it.
-
-The car does not flip direction just to leave. The visual model remains in its normal side orientation; leaving to the right is a reversing motion and entering from the right is forward motion. This is the intended "roll backwards / roll forwards" presentation.
-
-Input that would mutate the active garage car should be locked or deliberately queued while a swap animation is in progress so the scene cannot end in an impossible mixed state.
+Input that would mutate garage occupancy should be locked or deliberately queued while a drive-in/drive-out transition is in progress so the scene cannot end in an impossible mixed state.
 
 ## Asset layout
 
@@ -182,6 +230,7 @@ The presentation renderer must support:
 - tinting a neutral-grey body layer with arbitrary 24-bit RGB while preserving luminance;
 - independent wheel rotation;
 - per-model asset lookup by car ID;
+- explicit garage occupancy state separate from ownership/selection state;
 - vehicle translation controlled by runtime game state;
 - forward and reverse wheel rotation derived from signed travel distance;
 - decoded/scaled asset caching so animation does not repeatedly decode source images;
@@ -200,10 +249,12 @@ The following are not acceptable as the final architecture:
 - repainting chrome, glass, tyres or trim with body colour;
 - showing a static composed screenshot instead of independent scene and vehicle layers;
 - pre-rendering the drive-in or drive-out animation into images/video;
-- instantly replacing one parked car with another without the reverse-out / drive-in sequence;
+- automatically replaying the arrival animation every time the garage screen opens;
+- instantly replacing one physically parked car with another without the outgoing reverse / incoming forward sequence;
+- showing two parked cars in the garage during a swap;
 - generating a fresh raster source asset every time the player selects a paint colour;
 - animating wheels independently of actual distance travelled.
 
 ## Current design decision
 
-The neutral-grey-master approach is the required design. It gives Backyard Racer one accurate model asset per real car, historically plausible factory colours on acquisition, unrestricted 16.7-million-colour repainting, and one permanent realistic garage scene in which every vehicle can arrive, park, reverse out, be replaced and be repainted independently.
+The neutral-grey-master approach is the required design. Backyard Racer has one permanent realistic garage scene and an explicit physical garage-occupancy state. If the garage is empty, a car drives in from the right. If another car is already parked and the player buys or moves a different car into the garage, the current car first reverses out to the right and only then does the replacement drive in from the right. A car already parked remains parked until a real occupancy change occurs.
