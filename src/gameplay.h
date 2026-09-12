@@ -73,6 +73,7 @@ public:
     int cash() const { return cash_; }
     const std::vector<CarSpec>& classifieds() const { return classifieds_; }
     const std::vector<PartSpec>& parts_catalog() const { return parts_catalog_; }
+    const std::vector<PartSpec>& spare_parts() const { return spare_parts_; }
     const std::vector<OwnedCar>& garage() const { return garage_; }
 
     std::size_t active_car_index() const { return active_car_; }
@@ -82,6 +83,7 @@ public:
 
     bool buy_car(std::size_t listing_index, std::string* error = nullptr);
     bool buy_part(std::size_t part_index, std::string* error = nullptr);
+    bool install_spare(std::size_t spare_index, std::string* error = nullptr);
 
     Opponent current_opponent() const;
     RaceResult race_for_cash(int wager);
@@ -94,12 +96,14 @@ private:
     int cash_ = 0;
     std::vector<CarSpec> classifieds_;
     std::vector<PartSpec> parts_catalog_;
+    std::vector<PartSpec> spare_parts_;
     std::vector<OwnedCar> garage_;
     std::size_t active_car_ = 0;
     std::size_t opponent_index_ = 0;
 
     void seed_catalogs();
     void advance_opponent();
+    void install_part(OwnedCar& car, const PartSpec& part);
 };
 
 std::string car_display_name(const CarSpec& car);
