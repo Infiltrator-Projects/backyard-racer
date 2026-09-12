@@ -12,33 +12,40 @@ The build is pinned to Infiltratr Common **v1.16.0**, exact release commit:
 
 The current game uses Common for canonical project/application identity, string handling used by the command-line interface, and the fixed-step scheduler used by the live quarter-mile race. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
 
+## Presentation architecture
+
+Backyard Racer's final presentation is asset-driven and full-frame: the game owns the complete pixel image, composes the entire next frame off-screen, then presents that completed frame. Backgrounds, cars, UI panels, icons, labels and numbers are all graphical pixel content; system-font and primitive X11 drawing is transitional rather than the target visual architecture.
+
+The mandatory rendering contract is documented in [`docs/RENDERING_AND_PRESENTATION.md`](docs/RENDERING_AND_PRESENTATION.md).
+
+Garage/car presentation, including the single persistent open-door garage, neutral-grey recolourable car masters, historically plausible acquisition colours, 24-bit repainting, purchase drive-in animation, reverse-out/forward-in car swapping and distance-driven wheel rotation, is documented in [`docs/VEHICLE_PRESENTATION_AND_PAINT.md`](docs/VEHICLE_PRESENTATION_AND_PAINT.md).
+
 ## Current playable loop
 
-Version `0.6.0-dev` now has a complete basic garage-to-race loop, persistent progression and a real CC0 art pass.
+Version `0.6.0-dev` has a basic garage-to-race loop and persistent progression.
 
 The current loop is:
 
 `New Game -> Classifieds -> Buy Car -> Garage -> Buy/Install Parts -> Diner -> Cash or Pink-Slip Race -> Garage`
 
-Implemented now:
+Implemented gameplay includes:
 
 - rotating used-car classifieds;
-- mixed CC0 isometric used-car artwork with multiple body shapes and colour families instead of programmer rectangles/top-down cars on presentation screens;
 - multiple owned cars and active-car selection;
 - cash economy;
 - carburettor, intake, exhaust, camshaft, transmission, tyre and full engine upgrades;
-- engine swaps that materially change horsepower and are retained through saves just like the smaller bolt-on parts;
-- upgrades that alter horsepower, traction and shift performance;
+- engine swaps that materially change horsepower and survive saves;
+- upgrades affecting horsepower, traction and shift performance;
 - replaced parts retained in the player's parts bin;
-- Street Rod-style diner opponents and reputation ladder;
-- live player-controlled quarter-mile race with throttle, manual shifts, RPM and distance;
+- diner opponents and reputation ladder;
+- live player-controlled quarter-mile racing with throttle, manual shifts, RPM and distance;
 - $100 and $250 cash wagers;
-- pink-slip races where winning adds the opponent car to your garage and losing removes yours;
+- pink-slip races where winning adds the opponent car to the garage and losing removes the player's car;
 - race wear, repair cost and resale value;
-- automatic persistent saves, including garage, active car, installed parts, spare parts, cash, reputation, record and classifieds state;
-- Continue now survives quitting and reopening the game;
+- automatic persistent saves including garage, active car, installed parts, spare parts, cash, reputation, record and classifieds state;
+- Continue across process restarts;
 - gameplay save/load, engine-upgrade and race-session smoke tests in CI;
-- native X11 double-buffered interface.
+- a native X11 presentation backend, currently being migrated from primitive drawing toward the full-frame asset compositor defined above.
 
 Save data follows XDG conventions where available and defaults to `~/.local/share/backyard-racer/save_v1.txt` on a typical Linux desktop. `BACKYARD_RACER_SAVE` can override the path for testing or portable setups.
 
@@ -46,13 +53,13 @@ The garage mechanics are intentionally modular so the quick auto-install flow ca
 
 ## Art sources
 
-The drag strip uses Kenney's CC0 Racing Pack while the menu, classifieds, garage and diner use Kenney's CC0 Isometric Tiles Vehicles art. The classifieds intentionally mix red, blue, green, silver and black variants plus multiple sedan/pickup silhouettes from the same pack. See [`assets/README.md`](assets/README.md) for exact provenance and the pinned reproducible mirror commit.
+Existing race placeholders include Kenney CC0 Racing Pack material. Presentation assets are being replaced by authored, model-specific vehicle layers and a single realistic garage scene under the rendering contracts above. See [`assets/README.md`](assets/README.md) for tracked third-party provenance.
 
 ## Upstream acceleration
 
-Rather than redesigning known Street Rod mechanics from scratch, development is using public Street Rod-related engineering work as reference material where appropriate. See [`docs/UPSTREAM.md`](docs/UPSTREAM.md) for the current inventory and licence treatment.
+Rather than redesigning known Street Rod mechanics from scratch, development uses public Street Rod-related engineering work as reference material where appropriate. See [`docs/UPSTREAM.md`](docs/UPSTREAM.md) for the current inventory and licence treatment.
 
-Most importantly, the GPL-2.0-or-later **StreetRod3Classic** source provides proven garage/newspaper/parts/player/opponent/racing architecture that can be ported into this GPL-3.0-or-later project without inheriting its obsolete SDL/OpenGL platform layer wholesale.
+The GPL-2.0-or-later **StreetRod3Classic** source provides useful garage/newspaper/parts/player/opponent/racing architectural reference that can be ported into this GPL-3.0-or-later project without inheriting its obsolete SDL/OpenGL platform layer wholesale.
 
 ## Build on Linux
 
