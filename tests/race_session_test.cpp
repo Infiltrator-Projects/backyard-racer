@@ -4,6 +4,7 @@
 
 #include <infiltratr/timing.h>
 
+#include <cstdint>
 #include <iostream>
 #include <string>
 
