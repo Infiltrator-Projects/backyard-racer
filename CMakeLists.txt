@@ -19,6 +19,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(InfiltratrCommon)
 
 find_package(X11 REQUIRED)
+find_package(ZLIB REQUIRED)
 
 add_library(backyard-gameplay STATIC
     src/gameplay.cpp
@@ -27,13 +28,18 @@ target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
 set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
 
-# The presentation wrapper keeps the proven scene/game loop underneath it, but
-# renders the major non-race screens with model-specific classic-car profiles
-# and a more realistic workshop. Race lanes retain the top-down CC0 cars.
-add_executable(backyard-racer src/main_realistic_pass.cpp)
+# Menu, Classifieds and Garage now render complete software-pixel frames and
+# present the finished image through X11. The remaining screens temporarily
+# retain the proven legacy scene/race path while the framebuffer migration
+# continues. Prototype scene assets are embedded and decoded once at startup.
+add_executable(backyard-racer src/main_framebuffer_pass.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
-target_link_libraries(backyard-racer PRIVATE backyard-gameplay InfiltratrCommon::Portable X11::X11)
+target_link_libraries(backyard-racer PRIVATE
+    backyard-gameplay
+    InfiltratrCommon::Portable
+    X11::X11
+    ZLIB::ZLIB)
 
 add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
 target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
@@ -47,8 +53,8 @@ add_test(NAME race-session-common-timing COMMAND backyard-race-session-test)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(backyard-gameplay PRIVATE -Wall -Wextra -Wpedantic)
-    # The scene renderer is deliberately primitive-based, so avoid sending
-    # redundant X11 GC state and stale pointer-motion events to the server.
+    # The migrated renderer builds the visible frame in pixel memory. The
+    # legacy fallback screens still use the existing X11 fast-path helpers.
     target_compile_options(backyard-racer PRIVATE
         -Wall -Wextra -Wpedantic
         -include ${CMAKE_CURRENT_SOURCE_DIR}/src/x11_fast_path.h)
