@@ -19,12 +19,15 @@ int main() {
 
     if (!game.started()) return fail("new game did not start");
     if (game.cash() != 4000) return fail("starting cash is wrong");
+    if (game.reputation() != 0 || game.wins() != 0 || game.losses() != 0)
+        return fail("new game record was not reset");
     if (game.classifieds().empty()) return fail("classifieds are empty");
 
     std::string error;
     if (!game.buy_car(0, &error)) return fail("could not buy first car: " + error);
     if (game.active_car() == nullptr) return fail("bought car was not added to garage");
     if (game.cash() != 2800) return fail("car purchase did not debit cash correctly");
+    if (game.active_car()->condition != 100) return fail("newly bought car did not start at full condition");
 
     const int stock_hp = game.active_car()->horsepower();
     if (!game.buy_part(0, &error)) return fail("could not buy first carb: " + error);
@@ -47,6 +50,30 @@ int main() {
     if (!result.valid) return fail("cash race was rejected");
     if (result.player_et <= 0.0 || result.opponent_et <= 0.0)
         return fail("race elapsed times were not generated");
+    if (result.wear <= 0) return fail("race did not generate vehicle wear");
+    if (game.active_car() == nullptr || game.active_car()->condition >= 100)
+        return fail("race wear did not reduce vehicle condition");
+    if (game.wins() + game.losses() != 1) return fail("race record was not updated");
+
+    const int damaged_value = game.active_car()->resale_value();
+    const int repair_quote = game.active_car()->repair_cost();
+    if (repair_quote <= 0) return fail("damaged car has no repair quote");
+
+    int paid = 0;
+    if (!game.repair_active_car(&paid, &error)) return fail("could not repair damaged car: " + error);
+    if (paid != repair_quote) return fail("repair charged a different amount than quoted");
+    if (game.active_car() == nullptr || game.active_car()->condition != 100)
+        return fail("repair did not restore full condition");
+    if (game.active_car()->resale_value() <= damaged_value)
+        return fail("repair did not restore resale value");
+
+    const int cash_before_sale = game.cash();
+    const int expected_sale = game.active_car()->resale_value();
+    int sale_price = 0;
+    if (!game.sell_active_car(&sale_price, &error)) return fail("could not sell active car: " + error);
+    if (sale_price != expected_sale) return fail("car sale price did not match displayed resale value");
+    if (game.cash() != cash_before_sale + sale_price) return fail("car sale did not credit cash correctly");
+    if (!game.garage().empty()) return fail("sold car remained in garage");
 
     std::cout << "gameplay smoke test passed\n";
     return 0;
