@@ -102,6 +102,20 @@ static Image load_indexed_image(const scene_assets::IndexedAsset& asset) {
     return out;
 }
 
+static Image scale_nearest(const Image& src, int dw, int dh) {
+    if(src.empty() || dw<=0 || dh<=0) return {};
+    Image out; out.w=dw; out.h=dh;
+    out.px.resize(static_cast<std::size_t>(dw)*static_cast<std::size_t>(dh));
+    for(int y=0;y<dh;++y){
+        const int sy=std::clamp((y*src.h)/dh,0,src.h-1);
+        for(int x=0;x<dw;++x){
+            const int sx=std::clamp((x*src.w)/dw,0,src.w-1);
+            out.px[static_cast<std::size_t>(y)*dw+x]=src.px[static_cast<std::size_t>(sy)*src.w+sx];
+        }
+    }
+    return out;
+}
+
 class Surface {
 public:
     void resize(int w, int h) {
