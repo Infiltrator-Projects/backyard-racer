@@ -25,7 +25,9 @@ The menu, classifieds, garage and diner presentation now use real isometric civi
   - `vehicles/isometric-tiles-vehicles/PNG/Civilian/Red/Sedan 1/carRed2_000.png`
   - `vehicles/isometric-tiles-vehicles/PNG/Civilian/Blue/Sedan 1/carBlue2_000.png`
 
-`src/generated_isometric_assets.h` stores compact native X11 rectangle data derived from those two CC0 PNGs. The import uses a deliberately reduced palette suitable for the low-resolution Street Rod-style presentation. `src/main_art_pass.cpp` selects these isometric sprites for presentation screens while retaining the Racing Pack sprites on the actual drag strip.
+The upstream civilian pack contains Black, Blue, Green, Red and Silver families. `src/generated_isometric_assets.h` stores compact native X11 rectangle data derived from the imported red and blue PNGs, and `src/generated_vehicle_palette_variants.h` adds CC0 palette derivatives for green, silver and black. The classifieds now deliberately mix all five colour families so the newspaper page reads as a varied used-car market instead of duplicated placeholders.
+
+`src/main_art_pass.cpp` selects the isometric sprites for presentation screens while retaining the Racing Pack sprites on the actual drag strip, where the top-down viewpoint is appropriate.
 
 ## OpenGameArt isometric cars
 
