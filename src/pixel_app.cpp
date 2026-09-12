@@ -2,6 +2,8 @@
 // Pixel renderer kept split while the architecture cutover lands.
 #include "scene_embedded_assets.h"
 namespace backyard_racer::scene_assets {
+#include "garage_hd_asset.inc"
+#include "falcon_hd_asset.inc"
 #include "mustang_hd_asset.inc"
 }
 
