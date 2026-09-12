@@ -6,15 +6,15 @@ A native street-rod garage and racing game built around the hands-on car buildin
 
 Backyard Racer consumes **Infiltratr Common** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
 
-The build is pinned to Infiltratr Common **v1.15.7**, exact release commit:
+The build is pinned to Infiltratr Common **v1.16.0**, exact release commit:
 
-`e9b747c7c0530590fbba1f57788e046203ef8c4e`
+`a9db06b11f493c4e6f42bf6c13cc5cc5c73e1fc4`
 
-The current game uses Common for canonical project/application identity, string handling used by the command-line interface, and checked framebuffer/XImage allocation arithmetic. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
+The current game uses Common for canonical project/application identity, string handling used by the command-line interface, and the fixed-step scheduler used by the live quarter-mile race. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
 
 ## Current playable loop
 
-Version `0.2.0-dev` moves the project beyond the menu/garage placeholder. A new game now starts with cash and opens the used-car classifieds.
+Version `0.6.0-dev` now has a complete basic garage-to-race loop, persistent progression and a first real art pass.
 
 The current loop is:
 
@@ -23,18 +23,29 @@ The current loop is:
 Implemented now:
 
 - rotating used-car classifieds;
+- mixed CC0 isometric used-car artwork instead of programmer rectangles/top-down cars on presentation screens;
 - multiple owned cars and active-car selection;
 - cash economy;
 - carburettor, intake, exhaust, camshaft, transmission and tyre upgrades;
 - upgrades that alter horsepower, traction and shift performance;
-- Street Rod-style diner opponents;
-- quarter-mile result simulation based on power-to-weight, traction, shifting and reaction time;
+- replaced parts retained in the player's parts bin;
+- Street Rod-style diner opponents and reputation ladder;
+- live player-controlled quarter-mile race with throttle, manual shifts, RPM and distance;
 - $100 and $250 cash wagers;
 - pink-slip races where winning adds the opponent car to your garage and losing removes yours;
-- gameplay-core smoke tests in CI;
-- native X11 interface and the existing New Game / Continue / Settings / Quit shell.
+- race wear, repair cost and resale value;
+- automatic persistent saves, including garage, active car, installed parts, spare parts, cash, reputation, record and classifieds state;
+- Continue now survives quitting and reopening the game;
+- gameplay save/load and race-session smoke tests in CI;
+- native X11 double-buffered interface.
+
+Save data follows XDG conventions where available and defaults to `~/.local/share/backyard-racer/save_v1.txt` on a typical Linux desktop. `BACKYARD_RACER_SAVE` can override the path for testing or portable setups.
 
 The garage mechanics are intentionally modular so the quick auto-install flow can later gain the classic hands-on nut/bolt interaction without replacing the underlying car/part state model.
+
+## Art sources
+
+The drag strip uses Kenney's CC0 Racing Pack while the menu, classifieds, garage and diner use Kenney's CC0 Isometric Tiles Vehicles art. The classifieds intentionally mix red, blue, green, silver and black presentation variants. See [`assets/README.md`](assets/README.md) for exact provenance and the pinned reproducible mirror commit.
 
 ## Upstream acceleration
 
