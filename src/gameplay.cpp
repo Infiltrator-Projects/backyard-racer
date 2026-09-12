@@ -85,11 +85,15 @@ void GameState::seed_catalogs() {
 
     parts_catalog_ = {
         {"carb_4bbl", "4 BARREL CARB", PartType::Carburetor, 280, 18, 0.00, 0.00},
+        {"carb_dual", "DUAL QUAD CARBS", PartType::Carburetor, 520, 34, 0.00, 0.00},
         {"intake_hi", "HIGH RISE INTAKE", PartType::Intake, 340, 22, 0.00, 0.00},
         {"headers", "TUBE HEADERS", PartType::Exhaust, 320, 20, 0.00, 0.00},
         {"cam_street", "STREET CAM", PartType::Camshaft, 460, 32, 0.00, 0.00},
+        {"cam_race", "RACE CAM", PartType::Camshaft, 720, 52, 0.00, 0.00},
         {"trans_close", "CLOSE RATIO 4 SPEED", PartType::Transmission, 620, 0, 0.00, -0.04},
+        {"trans_quick", "QUICK SHIFT 4 SPEED", PartType::Transmission, 850, 0, 0.00, -0.07},
         {"tires_bias", "STICKY BIAS PLY", PartType::Tires, 380, 0, 0.07, 0.00},
+        {"tires_drag", "DRAG SLICKS", PartType::Tires, 650, 0, 0.12, 0.00},
     };
 }
 
@@ -97,6 +101,7 @@ void GameState::new_game() {
     started_ = true;
     cash_ = kStartingCash;
     garage_.clear();
+    spare_parts_.clear();
     active_car_ = 0;
     opponent_index_ = 0;
     seed_catalogs();
@@ -143,6 +148,20 @@ bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     return true;
 }
 
+void GameState::install_part(OwnedCar& car, const PartSpec& part) {
+    auto it = std::find_if(car.installed_parts.begin(), car.installed_parts.end(),
+                           [&](const PartSpec& existing) { return existing.type == part.type; });
+    if (it == car.installed_parts.end()) {
+        car.installed_parts.push_back(part);
+        return;
+    }
+
+    // Street Rod-style garage behaviour: the removed component is not destroyed.
+    // It goes back into the player's parts bin and can be installed again later.
+    spare_parts_.push_back(*it);
+    *it = part;
+}
+
 bool GameState::buy_part(std::size_t part_index, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
@@ -161,10 +180,33 @@ bool GameState::buy_part(std::size_t part_index, std::string* error) {
     }
 
     cash_ -= part.price;
+    install_part(*car, part);
+    return true;
+}
+
+bool GameState::install_spare(std::size_t spare_index, std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        if (error) *error = "BUY A CAR FIRST";
+        return false;
+    }
+    if (spare_index >= spare_parts_.size()) {
+        if (error) *error = "THAT SPARE PART IS NOT AVAILABLE";
+        return false;
+    }
+
+    PartSpec part = spare_parts_[spare_index];
+    spare_parts_.erase(spare_parts_.begin() + static_cast<std::ptrdiff_t>(spare_index));
+
     auto it = std::find_if(car->installed_parts.begin(), car->installed_parts.end(),
                            [&](const PartSpec& existing) { return existing.type == part.type; });
-    if (it == car->installed_parts.end()) car->installed_parts.push_back(part);
-    else *it = part;
+    if (it == car->installed_parts.end()) {
+        car->installed_parts.push_back(part);
+    } else {
+        PartSpec removed = *it;
+        *it = part;
+        spare_parts_.push_back(removed);
+    }
     return true;
 }
 
