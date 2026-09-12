@@ -130,26 +130,40 @@ std::vector<std::uint8_t> decode_base64(std::string_view text) {
 
 SurfaceOwner load_indexed_asset(const scene_assets::IndexedAsset& asset) {
     const auto compressed = decode_base64(asset.zlib_b64);
-    const std::size_t expected = static_cast<std::size_t>(asset.colors) * 3U +
-                                 static_cast<std::size_t>(asset.w) * asset.h;
-    std::vector<std::uint8_t> raw(expected);
+    const std::size_t pixel_count = static_cast<std::size_t>(asset.w) * asset.h;
+    const std::size_t rgb_expected = static_cast<std::size_t>(asset.colors) * 3U + pixel_count;
+    const std::size_t rgba_expected = static_cast<std::size_t>(asset.colors) * 4U + pixel_count;
+    std::vector<std::uint8_t> raw(std::max(rgb_expected, rgba_expected));
     uLongf raw_size = static_cast<uLongf>(raw.size());
-    const int result = uncompress(raw.data(), &raw_size, compressed.data(),
-                                  static_cast<uLong>(compressed.size()));
-    if (result != Z_OK || raw_size != raw.size()) {
-        throw std::runtime_error("Embedded scene asset decode failed");
+    int result = uncompress(raw.data(), &raw_size, compressed.data(),
+                            static_cast<uLong>(compressed.size()));
+    while (result == Z_BUF_ERROR && raw.size() < (64U * 1024U * 1024U)) {
+        raw.resize(raw.size() * 2U);
+        raw_size = static_cast<uLongf>(raw.size());
+        result = uncompress(raw.data(), &raw_size, compressed.data(),
+                            static_cast<uLong>(compressed.size()));
+    }
+    if (result != Z_OK) {
+        throw std::runtime_error("Embedded scene asset zlib decode failed");
+    }
+    raw.resize(static_cast<std::size_t>(raw_size));
+    const bool rgba_palette = raw.size() == rgba_expected;
+    if (!rgba_palette && raw.size() != rgb_expected) {
+        throw std::runtime_error("Embedded scene asset has unexpected decoded size");
     }
 
+    const std::size_t palette_stride = rgba_palette ? 4U : 3U;
     std::vector<Color> palette(static_cast<std::size_t>(asset.colors));
     for (int i = 0; i < asset.colors; ++i) {
-        const std::size_t offset = static_cast<std::size_t>(i) * 3U;
+        const std::size_t offset = static_cast<std::size_t>(i) * palette_stride;
         palette[static_cast<std::size_t>(i)] =
-            rgba(raw[offset], raw[offset + 1], raw[offset + 2]);
+            rgba(raw[offset], raw[offset + 1], raw[offset + 2],
+                 rgba_palette ? raw[offset + 3] : 255U);
     }
 
     SurfaceOwner image(asset.w, asset.h);
     image.clear(rgba(0, 0, 0, 0));
-    const std::size_t pixel_offset = static_cast<std::size_t>(asset.colors) * 3U;
+    const std::size_t pixel_offset = static_cast<std::size_t>(asset.colors) * palette_stride;
     for (int y = 0; y < asset.h; ++y) {
         for (int x = 0; x < asset.w; ++x) {
             const unsigned index = raw[pixel_offset + static_cast<std::size_t>(y) * asset.w + x];
