@@ -115,7 +115,7 @@ std::vector<std::uint8_t> decode_base64(std::string_view text) {
     unsigned value = 0;
     int bits = -8;
     for (char ch : text) {
-        if (ch == '=') break;
+        if (ch == '=' || ch == '\\') break;
         const int v = map[static_cast<unsigned char>(ch)];
         if (v < 0) continue;
         value = (value << 6U) | static_cast<unsigned>(v);
