@@ -46,7 +46,11 @@ add_test(NAME race-session-common-timing COMMAND backyard-race-session-test)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(backyard-gameplay PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(backyard-racer PRIVATE -Wall -Wextra -Wpedantic)
+    # The scene renderer is deliberately primitive-based, so avoid sending
+    # redundant X11 GC state and stale pointer-motion events to the server.
+    target_compile_options(backyard-racer PRIVATE
+        -Wall -Wextra -Wpedantic
+        -include ${CMAKE_CURRENT_SOURCE_DIR}/src/x11_fast_path.h)
     target_compile_options(backyard-gameplay-test PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(backyard-race-session-test PRIVATE -Wall -Wextra -Wpedantic)
 endif()
