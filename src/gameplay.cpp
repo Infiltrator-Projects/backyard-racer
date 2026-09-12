@@ -293,46 +293,38 @@ void GameState::apply_race_outcome(OwnedCar& car, RaceResult& result, int win_re
     }
 }
 
-RaceResult GameState::race_for_cash(int wager) {
+RaceResult GameState::settle_race(const Opponent& opponent, int wager, bool pink_slip,
+                                  double player_et) {
     RaceResult result;
     OwnedCar* player = active_car();
     if (!player) {
         result.summary = "BUY A CAR BEFORE YOU RACE";
         return result;
     }
-    if (wager <= 0 || cash_ < wager) {
+    if (!std::isfinite(player_et) || player_et <= 0.0) {
+        result.summary = "INVALID PLAYER RACE TIME";
+        return result;
+    }
+    if (!pink_slip && (wager <= 0 || cash_ < wager)) {
         result.summary = "YOU CANNOT COVER THAT BET";
         return result;
     }
 
-    const Opponent opponent = current_opponent();
     result.valid = true;
-    result.player_et = quarter_mile_et(*player, 0.30);
+    result.pink_slip = pink_slip;
+    result.player_et = player_et;
     result.opponent_et = quarter_mile_et(opponent.car, opponent.reaction_seconds);
     result.won = result.player_et <= result.opponent_et;
-    result.cash_delta = result.won ? wager : -wager;
-    cash_ += result.cash_delta;
-    apply_race_outcome(*player, result, 1);
-    result.summary = result.won ? "YOU WON THE CASH RACE" : "YOU LOST THE CASH RACE";
-    return result;
-}
 
-RaceResult GameState::race_for_pink_slip() {
-    RaceResult result;
-    OwnedCar* player = active_car();
-    if (!player) {
-        result.summary = "BUY A CAR BEFORE YOU RACE";
+    if (!pink_slip) {
+        result.cash_delta = result.won ? wager : -wager;
+        cash_ += result.cash_delta;
+        apply_race_outcome(*player, result, 1);
+        result.summary = result.won ? "YOU WON THE CASH RACE" : "YOU LOST THE CASH RACE";
         return result;
     }
 
-    const Opponent opponent = current_opponent();
-    result.valid = true;
-    result.pink_slip = true;
-    result.player_et = quarter_mile_et(*player, 0.30);
-    result.opponent_et = quarter_mile_et(opponent.car, opponent.reaction_seconds);
-    result.won = result.player_et <= result.opponent_et;
     apply_race_outcome(*player, result, 3);
-
     if (result.won) {
         garage_.push_back(opponent.car);
         active_car_ = garage_.size() - 1;
@@ -343,8 +335,19 @@ RaceResult GameState::race_for_pink_slip() {
         else if (active_car_ >= garage_.size()) active_car_ = garage_.size() - 1;
         result.summary = "YOU LOST YOUR CAR";
     }
-
     return result;
+}
+
+RaceResult GameState::race_for_cash(int wager) {
+    const OwnedCar* player = active_car();
+    const double player_et = player ? quarter_mile_et(*player, 0.30) : 0.0;
+    return settle_race(current_opponent(), wager, false, player_et);
+}
+
+RaceResult GameState::race_for_pink_slip() {
+    const OwnedCar* player = active_car();
+    const double player_et = player ? quarter_mile_et(*player, 0.30) : 0.0;
+    return settle_race(current_opponent(), 0, true, player_et);
 }
 
 } // namespace backyard_racer
