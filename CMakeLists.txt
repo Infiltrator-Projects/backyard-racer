@@ -27,9 +27,10 @@ target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
 set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
 
-# Main presentation is now authored as side-view location scenes: workshop,
-# newspaper classifieds and drive-in. Race lanes retain the top-down CC0 cars.
-add_executable(backyard-racer src/main_scene_pass.cpp)
+# The presentation wrapper keeps the proven scene/game loop underneath it, but
+# renders the major non-race screens with model-specific classic-car profiles
+# and a more realistic workshop. Race lanes retain the top-down CC0 cars.
+add_executable(backyard-racer src/main_realistic_pass.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-racer PRIVATE backyard-gameplay InfiltratrCommon::Portable X11::X11)
