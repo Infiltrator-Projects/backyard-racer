@@ -1,20 +1,17 @@
-CXX ?= g++
-CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Wpedantic
-LDLIBS ?= -lX11
+CMAKE ?= cmake
+BUILD_DIR ?= build
+BUILD_TYPE ?= Release
 
-TARGET := build/backyard-racer
-SOURCES := src/main.cpp
+.PHONY: all configure run clean
 
-.PHONY: all clean run
+all: configure
+	$(CMAKE) --build $(BUILD_DIR) --parallel
 
-all: $(TARGET)
+configure:
+	$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 
-$(TARGET): $(SOURCES)
-	@mkdir -p build
-	$(CXX) $(CXXFLAGS) $(SOURCES) -o $(TARGET) $(LDLIBS)
-
-run: $(TARGET)
-	./$(TARGET)
+run: all
+	./$(BUILD_DIR)/backyard-racer
 
 clean:
-	rm -rf build
+	rm -rf $(BUILD_DIR)
