@@ -203,11 +203,11 @@ struct PixelApp::Impl {
     }
 
     void load_assets() {
-        garage_source = load_indexed_asset(scene_assets::garage);
+        garage_source = load_indexed_asset(scene_assets::garage_hd);
 
         CarArt falcon;
         falcon.id = "falcon64";
-        falcon.source = load_indexed_asset(scene_assets::falcon);
+        falcon.source = load_indexed_asset(scene_assets::falcon_hd);
         falcon.rear_x = 0.225;
         falcon.front_x = 0.775;
         falcon.wheel_y = 0.80;
