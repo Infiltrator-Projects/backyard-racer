@@ -71,7 +71,7 @@ bool read_part(std::istream& in, PartSpec& part) {
              >> part.price >> part.horsepower_gain >> part.traction_gain
              >> part.shift_gain)) return false;
     if (type < static_cast<int>(PartType::Carburetor) ||
-        type > static_cast<int>(PartType::Camshaft)) return false;
+        type > static_cast<int>(PartType::Engine)) return false;
     part.type = static_cast<PartType>(type);
     return true;
 }
@@ -144,6 +144,7 @@ std::string part_type_name(PartType type) {
         case PartType::Transmission: return "TRANSMISSION";
         case PartType::Tires: return "TIRES";
         case PartType::Camshaft: return "CAMSHAFT";
+        case PartType::Engine: return "ENGINE";
     }
     return "PART";
 }
@@ -171,6 +172,8 @@ void GameState::seed_catalogs() {
         {"trans_quick", "QUICK SHIFT 4 SPEED", PartType::Transmission, 850, 0, 0.00, -0.07},
         {"tires_bias", "STICKY BIAS PLY", PartType::Tires, 380, 0, 0.07, 0.00},
         {"tires_drag", "DRAG SLICKS", PartType::Tires, 650, 0, 0.12, 0.00},
+        {"engine_street_v8", "BUILT STREET V8", PartType::Engine, 1100, 90, 0.00, 0.00},
+        {"engine_race_v8", "RACE PREP V8", PartType::Engine, 1850, 155, 0.00, 0.00},
     };
 }
 
