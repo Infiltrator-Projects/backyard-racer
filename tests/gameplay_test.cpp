@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gameplay.h"
 
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -42,6 +43,23 @@ int main() {
     if (!game.install_spare(0, &error)) return fail("could not reinstall spare carb: " + error);
     if (game.active_car()->horsepower() != first_carb_hp) return fail("spare carb was not reinstalled");
     if (game.spare_parts().size() != 1) return fail("swapped-out carb was not returned to parts bin");
+
+    const auto save_path = std::filesystem::temp_directory_path() / "backyard-racer-gameplay-test.sav";
+    std::error_code remove_error;
+    std::filesystem::remove(save_path, remove_error);
+    if (!game.save_to(save_path.string(), &error)) return fail("could not save game: " + error);
+
+    GameState restored;
+    if (!restored.load_from(save_path.string(), &error)) return fail("could not reload game: " + error);
+    std::filesystem::remove(save_path, remove_error);
+    if (!restored.started()) return fail("reloaded game was not marked started");
+    if (restored.cash() != game.cash()) return fail("cash did not survive save/load");
+    if (restored.garage().size() != game.garage().size()) return fail("garage did not survive save/load");
+    if (restored.spare_parts().size() != game.spare_parts().size()) return fail("parts bin did not survive save/load");
+    if (!restored.active_car() || restored.active_car()->base.id != game.active_car()->base.id)
+        return fail("active car did not survive save/load");
+    if (restored.active_car()->horsepower() != game.active_car()->horsepower())
+        return fail("installed performance parts did not survive save/load");
 
     const auto opponent = game.current_opponent();
     if (opponent.name.empty()) return fail("opponent was not generated");
