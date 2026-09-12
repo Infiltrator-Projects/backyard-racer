@@ -3,4 +3,5 @@
 // cutover can be reviewed independently from the generated prototype assets.
 #include "main_framebuffer_part1.inc"
 #include "main_framebuffer_part2.inc"
+#include "main_framebuffer_helpers.inc"
 #include "main_framebuffer_part3.inc"
