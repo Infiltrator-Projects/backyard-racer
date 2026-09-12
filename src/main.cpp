@@ -2,15 +2,21 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <infiltratr/core.h>
+#include <infiltratr/timing.h>
+
 #include "gameplay.h"
+#include "race_session.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 namespace backyard_racer {
 
@@ -18,7 +24,7 @@ const InfiltratrProjectInfo& project_info() {
     static const InfiltratrProjectInfo info = {
         sizeof(InfiltratrProjectInfo), INFILTRATR_PROJECT_INFO_ABI,
         "Backyard Racer", "backyard-racer", "au.com.infiltrator.backyard-racer",
-        "0.4.0-dev", "Infiltrator-Projects/backyard-racer", "development",
+        "0.5.0-dev", "Infiltrator-Projects/backyard-racer", "development",
         "Shannon Smith", "https://github.com/Infiltrator-Projects/backyard-racer",
         "GPL-3.0-or-later", "Street-rod garage and racing game", "backyard-racer",
         "Copyright (c) 2026 Shannon Smith"
@@ -31,7 +37,7 @@ struct Rect {
     bool contains(int px, int py) const { return px >= x && py >= y && px < x + w && py < y + h; }
 };
 
-enum class Screen { Menu, Classifieds, Garage, Parts, Diner, Result, Settings };
+enum class Screen { Menu, Classifieds, Garage, Parts, Diner, Race, Result, Settings };
 
 class App {
 public:
@@ -44,7 +50,7 @@ public:
                                    static_cast<unsigned>(width_), static_cast<unsigned>(height_), 0,
                                    BlackPixel(dpy_, screen_no_), BlackPixel(dpy_, screen_no_));
         XStoreName(dpy_, win_, project_info().program_name);
-        XSelectInput(dpy_, win_, ExposureMask | KeyPressMask | ButtonPressMask |
+        XSelectInput(dpy_, win_, ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask |
                                  PointerMotionMask | StructureNotifyMask);
         wm_delete_ = XInternAtom(dpy_, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(dpy_, win_, &wm_delete_, 1);
@@ -65,32 +71,20 @@ public:
     int run() {
         draw();
         while (running_) {
-            XEvent ev{};
-            XNextEvent(dpy_, &ev);
-            switch (ev.type) {
-                case Expose: draw(); break;
-                case ConfigureNotify:
-                    width_ = std::max(900, ev.xconfigure.width);
-                    height_ = std::max(600, ev.xconfigure.height);
-                    draw();
-                    break;
-                case MotionNotify:
-                    mouse_x_ = ev.xmotion.x;
-                    mouse_y_ = ev.xmotion.y;
-                    draw();
-                    break;
-                case ButtonPress:
-                    if (ev.xbutton.button == Button1) click(ev.xbutton.x, ev.xbutton.y);
-                    draw();
-                    break;
-                case KeyPress:
-                    key(XLookupKeysym(&ev.xkey, 0));
-                    draw();
-                    break;
-                case ClientMessage:
-                    if (static_cast<Atom>(ev.xclient.data.l[0]) == wm_delete_) running_ = false;
-                    break;
-                default: break;
+            if (screen_ == Screen::Race) {
+                while (XPending(dpy_) > 0) {
+                    XEvent ev{};
+                    XNextEvent(dpy_, &ev);
+                    process_event(ev);
+                }
+                tick_race();
+                draw();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } else {
+                XEvent ev{};
+                XNextEvent(dpy_, &ev);
+                process_event(ev);
+                draw();
             }
         }
         return 0;
@@ -110,7 +104,48 @@ private:
     Screen screen_ = Screen::Menu;
     GameState game_;
     RaceResult last_race_;
+    DragRaceSession race_;
+    Opponent race_opponent_;
+    int race_wager_ = 0;
+    bool race_pinks_ = false;
+    InfiltratrFixedStepScheduler race_clock_{};
+    bool race_clock_ready_ = false;
     std::string message_ = "PRE-ALPHA - INVESTOR VERTICAL SLICE";
+
+    static std::uint64_t monotonic_ns() {
+        const auto count = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        return count > 0 ? static_cast<std::uint64_t>(count) : 0U;
+    }
+
+    void process_event(const XEvent& ev) {
+        switch (ev.type) {
+            case Expose:
+                break;
+            case ConfigureNotify:
+                width_ = std::max(900, ev.xconfigure.width);
+                height_ = std::max(600, ev.xconfigure.height);
+                break;
+            case MotionNotify:
+                mouse_x_ = ev.xmotion.x;
+                mouse_y_ = ev.xmotion.y;
+                break;
+            case ButtonPress:
+                if (ev.xbutton.button == Button1) click(ev.xbutton.x, ev.xbutton.y);
+                break;
+            case KeyPress:
+                key_press(XLookupKeysym(const_cast<XKeyEvent*>(&ev.xkey), 0));
+                break;
+            case KeyRelease:
+                key_release(XLookupKeysym(const_cast<XKeyEvent*>(&ev.xkey), 0));
+                break;
+            case ClientMessage:
+                if (static_cast<Atom>(ev.xclient.data.l[0]) == wm_delete_) running_ = false;
+                break;
+            default:
+                break;
+        }
+    }
 
     unsigned long rgb(unsigned r, unsigned g, unsigned b) const {
         auto channel = [](unsigned value, unsigned long mask) {
@@ -328,11 +363,62 @@ private:
         text(100, 274, "YOUR REP " + std::to_string(game_.reputation()) +
              "   RECORD " + std::to_string(game_.wins()) + "-" + std::to_string(game_.losses()), 190, 192, 194);
         text(100, 302, "WIN RACES TO CLIMB: EDDIE -> MICK -> RAY -> THE KING", 170, 172, 174);
-        button(100, 342, 180, 48, "RACE FOR $100");
-        button(300, 342, 180, 48, "RACE FOR $250");
-        button(500, 342, 210, 48, "RACE FOR PINKS");
+        button(100, 342, 180, 48, "DRAG FOR $100");
+        button(300, 342, 180, 48, "DRAG FOR $250");
+        button(500, 342, 210, 48, "DRAG FOR PINKS");
         button(width_ - 200, height_ - 58, 165, 38, "GARAGE");
         text(70, height_ - 34, message_, 200, 200, 190);
+    }
+
+    void draw_race() {
+        fill({0, 0, width_, height_}, 14, 18, 24);
+        header("QUARTER MILE - YOU ARE DRIVING");
+
+        const int start_x = 90;
+        const int finish_x = width_ - 90;
+        const int road_w = std::max(1, finish_x - start_x);
+        const double player_fraction = std::clamp(race_.distance_ft() / 1320.0, 0.0, 1.0);
+        const double opponent_fraction = std::clamp(race_.opponent_distance_ft() / 1320.0, 0.0, 1.0);
+        const int player_x = start_x + static_cast<int>(player_fraction * road_w);
+        const int opponent_x = start_x + static_cast<int>(opponent_fraction * road_w);
+
+        fill({55, 155, width_ - 110, 330}, 46, 47, 49);
+        color(225, 225, 210);
+        XDrawLine(dpy_, win_, gc_, start_x, 175, start_x, 465);
+        XDrawLine(dpy_, win_, gc_, finish_x, 175, finish_x, 465);
+        color(145, 145, 135);
+        for (int x = start_x; x < finish_x; x += 70) {
+            XDrawLine(dpy_, win_, gc_, x, 322, std::min(x + 35, finish_x), 322);
+        }
+
+        draw_car(player_x, 300, 150, 151, 39, 36);
+        draw_car(opponent_x, 445, 150, 76, 95, 145);
+        text(65, 202, "YOU", 235, 236, 228);
+        text(65, 350, race_opponent_.name, 220, 220, 210);
+
+        const bool green = race_.green();
+        fill({width_ / 2 - 42, 95, 84, 42}, green ? 28U : 180U, green ? 178U : 35U, 35U);
+        big_text(width_ / 2 - 30, 122, green ? "GO" : "RED", 245, 245, 235);
+
+        std::ostringstream speed;
+        speed << std::fixed << std::setprecision(1) << race_.speed_mph();
+        std::ostringstream distance;
+        distance << std::fixed << std::setprecision(0) << race_.distance_ft();
+        text(65, 520, "SPEED " + speed.str() + " MPH   RPM " + std::to_string(race_.rpm()) +
+             "   GEAR " + std::to_string(race_.gear()) + "/" + std::to_string(race_.max_gears()), 235, 236, 228);
+        text(65, 548, "DISTANCE " + distance.str() + " / 1320 FT", 210, 212, 205);
+
+        const int tach_x = 65, tach_y = 575, tach_w = width_ - 130;
+        fill({tach_x, tach_y, tach_w, 20}, 25, 25, 25);
+        const int tach_fill = static_cast<int>(std::clamp(race_.rpm() / 7600.0, 0.0, 1.0) * tach_w);
+        fill({tach_x, tach_y, tach_fill, 20}, race_.rpm() >= 6500 ? 205U : 185U,
+             race_.rpm() >= 6500 ? 55U : 160U, 45U);
+        outline({tach_x, tach_y, tach_w, 20}, 190, 192, 194, 1);
+
+        text(65, 630, "HOLD UP / W / SPACE = THROTTLE    A = UPSHIFT    Z = DOWNSHIFT", 225, 225, 214);
+        text(65, 656, race_.green() ? "SHIFT NEAR THE REDLINE - YOUR ET DECIDES THE BET" :
+             "STAGE IT: HOLD THROTTLE TO BUILD RPM BEFORE GREEN", 190, 192, 194);
+        text(65, 682, "ESC = ABORT BACK TO DINER", 155, 158, 160);
     }
 
     void draw_result() {
@@ -371,13 +457,79 @@ private:
             case Screen::Garage: draw_garage(); break;
             case Screen::Parts: draw_parts(); break;
             case Screen::Diner: draw_diner(); break;
+            case Screen::Race: draw_race(); break;
             case Screen::Result: draw_result(); break;
             case Screen::Settings: draw_settings(); break;
         }
         XFlush(dpy_);
     }
 
-    void key(KeySym key_sym) {
+    void start_race(int wager, bool pinks) {
+        const OwnedCar* car = game_.active_car();
+        if (!car) {
+            message_ = "BUY A CAR BEFORE YOU RACE";
+            return;
+        }
+        if (!pinks && game_.cash() < wager) {
+            message_ = "YOU CANNOT COVER THAT BET";
+            return;
+        }
+
+        race_opponent_ = game_.current_opponent();
+        race_wager_ = wager;
+        race_pinks_ = pinks;
+        race_.start(*car, race_opponent_);
+
+        if (!infiltratr_fixed_step_configure(&race_clock_, 1000000000ULL, 60ULL,
+                                             250000000ULL, 8ULL) ||
+            !infiltratr_fixed_step_reset(&race_clock_, monotonic_ns())) {
+            throw std::runtime_error("Common fixed-step scheduler could not initialize");
+        }
+        race_clock_ready_ = true;
+        message_ = "STAGE - HOLD THROTTLE, THEN SHIFT IT YOURSELF";
+        screen_ = Screen::Race;
+    }
+
+    void tick_race() {
+        if (screen_ != Screen::Race || !race_clock_ready_) return;
+
+        InfiltratrFixedStepResult timing{};
+        if (!infiltratr_fixed_step_advance(&race_clock_, monotonic_ns(), &timing))
+            throw std::runtime_error("Common fixed-step scheduler failed during race");
+
+        constexpr double step_seconds = 1.0 / 60.0;
+        for (std::uint64_t step = 0; step < timing.steps_to_run && screen_ == Screen::Race; ++step) {
+            race_.update(step_seconds);
+            if (race_.finished()) {
+                last_race_ = game_.settle_race(race_opponent_, race_wager_, race_pinks_, race_.player_et());
+                message_ = last_race_.summary;
+                race_clock_ready_ = false;
+                screen_ = Screen::Result;
+            }
+        }
+    }
+
+    static bool throttle_key(KeySym key_sym) {
+        return key_sym == XK_Up || key_sym == XK_w || key_sym == XK_W || key_sym == XK_space;
+    }
+
+    void key_press(KeySym key_sym) {
+        if (screen_ == Screen::Race) {
+            if (throttle_key(key_sym)) {
+                race_.set_throttle(true);
+            } else if (key_sym == XK_a || key_sym == XK_A || key_sym == XK_Right) {
+                race_.shift_up();
+            } else if (key_sym == XK_z || key_sym == XK_Z || key_sym == XK_Left) {
+                race_.shift_down();
+            } else if (key_sym == XK_Escape) {
+                race_.set_throttle(false);
+                race_clock_ready_ = false;
+                message_ = "RACE ABORTED - NO STAKES SETTLED";
+                screen_ = Screen::Diner;
+            }
+            return;
+        }
+
         if (key_sym != XK_Escape) return;
         if (screen_ == Screen::Menu) running_ = false;
         else if (screen_ == Screen::Garage) screen_ = Screen::Menu;
@@ -386,6 +538,10 @@ private:
             screen_ = Screen::Garage;
         else
             screen_ = Screen::Menu;
+    }
+
+    void key_release(KeySym key_sym) {
+        if (screen_ == Screen::Race && throttle_key(key_sym)) race_.set_throttle(false);
     }
 
     void click(int x, int y) {
@@ -490,14 +646,11 @@ private:
 
         if (screen_ == Screen::Diner) {
             if (Rect{100, 342, 180, 48}.contains(x, y)) {
-                last_race_ = game_.race_for_cash(100);
-                screen_ = Screen::Result;
+                start_race(100, false);
             } else if (Rect{300, 342, 180, 48}.contains(x, y)) {
-                last_race_ = game_.race_for_cash(250);
-                screen_ = Screen::Result;
+                start_race(250, false);
             } else if (Rect{500, 342, 210, 48}.contains(x, y)) {
-                last_race_ = game_.race_for_pink_slip();
-                screen_ = Screen::Result;
+                start_race(0, true);
             } else if (Rect{width_ - 200, height_ - 58, 165, 38}.contains(x, y)) {
                 screen_ = Screen::Garage;
             }
