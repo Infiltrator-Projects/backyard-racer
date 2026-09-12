@@ -8,11 +8,13 @@
 #include "gameplay.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <random>
 #include <sstream>
 #include <system_error>
 
@@ -21,9 +23,16 @@ namespace backyard_racer {
 namespace {
 
 constexpr int kStartingCash = 4000;
-constexpr int kSaveVersion = 1;
+constexpr int kSaveVersion = 2;
 constexpr std::size_t kMaxSavedCars = 64;
 constexpr std::size_t kMaxSavedParts = 256;
+
+struct FactoryPaint {
+    const char* name;
+    std::uint8_t r;
+    std::uint8_t g;
+    std::uint8_t b;
+};
 
 const std::vector<CarSpec> kOpponentCars = {
     {"opp_nova", 1966, "CHEVROLET", "NOVA", 2600, 220, 3000, 0.91, 4},
@@ -38,6 +47,48 @@ const std::vector<std::string> kOpponentNames = {
 
 void set_error(std::string* error, const std::string& message) {
     if (error) *error = message;
+}
+
+PaintState paint_from(const FactoryPaint& paint) {
+    return PaintState{paint.r, paint.g, paint.b, paint.name, false};
+}
+
+PaintState choose_factory_paint(const CarSpec& car) {
+    static const std::array<FactoryPaint, 5> falcon64{{
+        {"WIMBLEDON WHITE", 238, 235, 218},
+        {"RANGOON RED", 174, 55, 47},
+        {"GUARDSMAN BLUE", 53, 76, 111},
+        {"DYNASTY GREEN", 73, 101, 82},
+        {"PRAIRIE BRONZE", 157, 128, 91},
+    }};
+    static const std::array<FactoryPaint, 6> mustang65{{
+        {"WIMBLEDON WHITE", 238, 235, 218},
+        {"RANGOON RED", 174, 55, 47},
+        {"CASPIAN BLUE", 47, 72, 103},
+        {"IVY GREEN", 62, 89, 66},
+        {"POPPY RED", 207, 72, 38},
+        {"SILVER BLUE", 112, 139, 153},
+    }};
+    static const std::array<FactoryPaint, 5> generic60s{{
+        {"FACTORY WHITE", 238, 236, 224},
+        {"FACTORY RED", 171, 48, 43},
+        {"FACTORY BLUE", 54, 80, 112},
+        {"FACTORY GREEN", 62, 91, 70},
+        {"FACTORY BLACK", 34, 34, 32},
+    }};
+
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    if (car.id == "falcon64") {
+        std::uniform_int_distribution<std::size_t> pick(0, falcon64.size() - 1);
+        return paint_from(falcon64[pick(generator)]);
+    }
+    if (car.id == "mustang65") {
+        std::uniform_int_distribution<std::size_t> pick(0, mustang65.size() - 1);
+        return paint_from(mustang65[pick(generator)]);
+    }
+    std::uniform_int_distribution<std::size_t> pick(0, generic60s.size() - 1);
+    return paint_from(generic60s[pick(generator)]);
 }
 
 void write_car(std::ostream& out, const CarSpec& car) {
@@ -241,7 +292,7 @@ bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     }
 
     cash_ -= spec.price;
-    garage_.push_back(OwnedCar{spec, {}, 100});
+    garage_.push_back(OwnedCar{spec, {}, 100, choose_factory_paint(spec)});
     active_car_ = garage_.size() - 1;
 
     CarSpec replacement = spec;
@@ -288,6 +339,19 @@ bool GameState::repair_active_car(int* repair_price, std::string* error) {
     cash_ -= price;
     car->condition = 100;
     if (repair_price) *repair_price = price;
+    persist();
+    return true;
+}
+
+bool GameState::repaint_active_car(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                   const std::string& name, bool custom,
+                                   std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        set_error(error, "NO CAR TO PAINT");
+        return false;
+    }
+    car->paint = PaintState{r, g, b, name.empty() ? std::string("CUSTOM") : name, custom};
     persist();
     return true;
 }
@@ -359,7 +423,7 @@ Opponent GameState::current_opponent() const {
                                                      kOpponentCars.size() - 1);
     Opponent opponent;
     opponent.name = kOpponentNames[index];
-    opponent.car = OwnedCar{kOpponentCars[index], {}, 100};
+    opponent.car = OwnedCar{kOpponentCars[index], {}, 100, choose_factory_paint(kOpponentCars[index])};
     opponent.reaction_seconds = 0.42 - static_cast<double>(index) * 0.055;
     return opponent;
 }
@@ -479,7 +543,12 @@ bool GameState::save_to(const std::string& path, std::string* error) const {
     out << "GARAGE " << garage_.size() << '\n';
     for (const auto& owned : garage_) {
         out << "OWNED " << std::clamp(owned.condition, 0, 100) << ' '
-            << owned.installed_parts.size() << '\n';
+            << owned.installed_parts.size() << ' '
+            << static_cast<unsigned>(owned.paint.r) << ' '
+            << static_cast<unsigned>(owned.paint.g) << ' '
+            << static_cast<unsigned>(owned.paint.b) << ' '
+            << std::quoted(owned.paint.name) << ' '
+            << (owned.paint.custom ? 1 : 0) << '\n';
         write_car(out, owned.base);
         for (const auto& part : owned.installed_parts) write_part(out, part);
     }
@@ -520,7 +589,8 @@ bool GameState::load_from(const std::string& path, std::string* error) {
 
     std::string marker;
     int version = 0;
-    if (!(in >> marker >> version) || marker != "BACKYARD_RACER_SAVE" || version != kSaveVersion) {
+    if (!(in >> marker >> version) || marker != "BACKYARD_RACER_SAVE" ||
+        version < 1 || version > kSaveVersion) {
         set_error(error, "UNSUPPORTED OR CORRUPT SAVE FILE");
         return false;
     }
@@ -560,10 +630,24 @@ bool GameState::load_from(const std::string& path, std::string* error) {
     for (std::size_t i = 0; i < garage_count; ++i) {
         int condition = 0;
         std::size_t installed_count = 0;
+        PaintState paint;
         if (!(in >> marker >> condition >> installed_count) || marker != "OWNED" ||
             condition < 0 || condition > 100 || installed_count > kMaxSavedParts) {
             set_error(error, "CORRUPT OWNED CAR DATA");
             return false;
+        }
+        if (version >= 2) {
+            unsigned r = 0, g = 0, b = 0;
+            int custom = 0;
+            if (!(in >> r >> g >> b >> std::quoted(paint.name) >> custom) ||
+                r > 255 || g > 255 || b > 255 || (custom != 0 && custom != 1)) {
+                set_error(error, "CORRUPT PAINT DATA");
+                return false;
+            }
+            paint.r = static_cast<std::uint8_t>(r);
+            paint.g = static_cast<std::uint8_t>(g);
+            paint.b = static_cast<std::uint8_t>(b);
+            paint.custom = custom != 0;
         }
         OwnedCar owned;
         owned.condition = condition;
@@ -571,6 +655,8 @@ bool GameState::load_from(const std::string& path, std::string* error) {
             set_error(error, "CORRUPT GARAGE CAR DATA");
             return false;
         }
+        if (version == 1) paint = choose_factory_paint(owned.base);
+        owned.paint = std::move(paint);
         owned.installed_parts.reserve(installed_count);
         for (std::size_t part_index = 0; part_index < installed_count; ++part_index) {
             PartSpec part;

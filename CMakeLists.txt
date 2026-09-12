@@ -5,16 +5,16 @@ project(BackyardRacer VERSION 0.6.0 LANGUAGES C CXX)
 
 include(FetchContent)
 
-# Common is the canonical shared implementation. Pin the exact immutable
-# v1.16.0 release commit so the game uses the reviewed fixed-step scheduler and
-# future Common main changes cannot silently alter this build.
+# Common owns generic timing and software-pixel surface operations. Pin the
+# exact reviewed commit so both the game core and host adapter build against
+# the same immutable implementation.
 set(INFILTRATR_COMMON_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(INFILTRATR_COMMON_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(INFILTRATR_COMMON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     InfiltratrCommon
     GIT_REPOSITORY https://github.com/Infiltrator-Projects/Infiltrator-Libraries.git
-    GIT_TAG a9db06b11f493c4e6f42bf6c13cc5cc5c73e1fc4
+    GIT_TAG e97276c50c894f69a2137efd81e06b3a90945c25
 )
 FetchContent_MakeAvailable(InfiltratrCommon)
 
@@ -28,18 +28,27 @@ target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
 set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
 
-# Menu, Classifieds and Garage now render complete software-pixel frames and
-# present the finished image through X11. The remaining screens temporarily
-# retain the proven legacy scene/race path while the framebuffer migration
-# continues. Prototype scene assets are embedded and decoded once at startup.
-add_executable(backyard-racer src/main_framebuffer_pass.cpp)
+# Platform-neutral presentation core. It owns every player-visible pixel and
+# deliberately has no X11 dependency. X11 is confined to the host adapter.
+add_library(backyard-pixel-core STATIC
+    src/pixel_app.cpp)
+target_include_directories(backyard-pixel-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_features(backyard-pixel-core PUBLIC cxx_std_20)
+set_target_properties(backyard-pixel-core PROPERTIES CXX_EXTENSIONS OFF)
+target_link_libraries(backyard-pixel-core PUBLIC
+    backyard-gameplay
+    InfiltratrCommon::Portable
+    ZLIB::ZLIB)
+
+add_executable(backyard-racer
+    src/main_pixel.cpp
+    src/platform_x11.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-racer PRIVATE
-    backyard-gameplay
+    backyard-pixel-core
     InfiltratrCommon::Portable
-    X11::X11
-    ZLIB::ZLIB)
+    X11::X11)
 
 add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
 target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
@@ -47,17 +56,27 @@ target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
 add_executable(backyard-race-session-test tests/race_session_test.cpp)
 target_link_libraries(backyard-race-session-test PRIVATE backyard-gameplay InfiltratrCommon::Portable)
 
+add_executable(backyard-pixel-core-test tests/pixel_core_test.cpp)
+target_link_libraries(backyard-pixel-core-test PRIVATE backyard-pixel-core)
+
+add_executable(backyard-paint-state-test tests/paint_state_test.cpp)
+target_link_libraries(backyard-paint-state-test PRIVATE backyard-gameplay)
+
 enable_testing()
 add_test(NAME gameplay-smoke COMMAND backyard-gameplay-test)
 add_test(NAME race-session-common-timing COMMAND backyard-race-session-test)
+add_test(NAME pixel-core-no-x11 COMMAND backyard-pixel-core-test)
+add_test(NAME paint-state-persistence COMMAND backyard-paint-state-test)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    target_compile_options(backyard-gameplay PRIVATE -Wall -Wextra -Wpedantic)
-    # The migrated renderer builds the visible frame in pixel memory. The
-    # legacy fallback screens still use the existing X11 fast-path helpers.
-    target_compile_options(backyard-racer PRIVATE
-        -Wall -Wextra -Wpedantic
-        -include ${CMAKE_CURRENT_SOURCE_DIR}/src/x11_fast_path.h)
-    target_compile_options(backyard-gameplay-test PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(backyard-race-session-test PRIVATE -Wall -Wextra -Wpedantic)
+    foreach(target
+            backyard-gameplay
+            backyard-pixel-core
+            backyard-racer
+            backyard-gameplay-test
+            backyard-race-session-test
+            backyard-pixel-core-test
+            backyard-paint-state-test)
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endforeach()
 endif()

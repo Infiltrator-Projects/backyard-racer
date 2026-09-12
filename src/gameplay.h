@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -39,10 +40,19 @@ struct CarSpec {
     int gears = 4;
 };
 
+struct PaintState {
+    std::uint8_t r = 192;
+    std::uint8_t g = 192;
+    std::uint8_t b = 192;
+    std::string name = "FACTORY GREY";
+    bool custom = false;
+};
+
 struct OwnedCar {
     CarSpec base;
     std::vector<PartSpec> installed_parts;
     int condition = 100;
+    PaintState paint{};
 
     int horsepower() const;
     double traction() const;
@@ -93,6 +103,10 @@ public:
     bool buy_car(std::size_t listing_index, std::string* error = nullptr);
     bool sell_active_car(int* sale_price = nullptr, std::string* error = nullptr);
     bool repair_active_car(int* repair_price = nullptr, std::string* error = nullptr);
+    bool repaint_active_car(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                            const std::string& name = "CUSTOM",
+                            bool custom = true,
+                            std::string* error = nullptr);
     bool buy_part(std::size_t part_index, std::string* error = nullptr);
     bool install_spare(std::size_t spare_index, std::string* error = nullptr);
 
