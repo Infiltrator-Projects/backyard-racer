@@ -10,6 +10,8 @@
 // its stable enum ordinal: Menu=0, Classifieds=1, Garage=2, Parts=3, Diner=4,
 // Race=5. No gameplay or timing behaviour is changed by this translation unit.
 
+#include <iterator>
+
 #include "generated_assets.h"
 #include "generated_isometric_assets.h"
 
