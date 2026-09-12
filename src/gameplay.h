@@ -94,6 +94,8 @@ public:
     bool install_spare(std::size_t spare_index, std::string* error = nullptr);
 
     Opponent current_opponent() const;
+    RaceResult settle_race(const Opponent& opponent, int wager, bool pink_slip,
+                           double player_et);
     RaceResult race_for_cash(int wager);
     RaceResult race_for_pink_slip();
 
