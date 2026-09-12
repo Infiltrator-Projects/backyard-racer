@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Gameplay structure is deliberately informed by the GPL-2.0-or-later
-// StreetRod3Classic project (garage/newspaper/parts/player/race separation),
+// StreetRod3Classic project (garage/newspaper/parts/player/race separation,
+// reusable removed parts, damage repair costs and vehicle selling value),
 // while this implementation is a fresh modern C++ port for Backyard Racer.
 
 #include "gameplay.h"
@@ -32,13 +33,15 @@ const std::vector<std::string> kOpponentNames = {
 int OwnedCar::horsepower() const {
     int hp = base.horsepower;
     for (const auto& part : installed_parts) hp += part.horsepower_gain;
-    return std::max(1, hp);
+    const double condition_factor = 0.70 + 0.30 * (std::clamp(condition, 0, 100) / 100.0);
+    return std::max(1, static_cast<int>(std::lround(hp * condition_factor)));
 }
 
 double OwnedCar::traction() const {
     double value = base.traction;
     for (const auto& part : installed_parts) value += part.traction_gain;
-    return std::clamp(value, 0.70, 1.15);
+    const double condition_factor = 0.90 + 0.10 * (std::clamp(condition, 0, 100) / 100.0);
+    return std::clamp(value * condition_factor, 0.65, 1.15);
 }
 
 double OwnedCar::shift_factor() const {
@@ -50,7 +53,16 @@ double OwnedCar::shift_factor() const {
 int OwnedCar::resale_value() const {
     int value = base.price * 3 / 4;
     for (const auto& part : installed_parts) value += part.price / 2;
-    return value;
+    const double condition_factor = 0.55 + 0.45 * (std::clamp(condition, 0, 100) / 100.0);
+    return std::max(100, static_cast<int>(std::lround(value * condition_factor)));
+}
+
+int OwnedCar::repair_cost() const {
+    const int damage = 100 - std::clamp(condition, 0, 100);
+    if (damage <= 0) return 0;
+    int value = base.price;
+    for (const auto& part : installed_parts) value += part.price / 2;
+    return std::max(25, value * damage / 100);
 }
 
 std::string car_display_name(const CarSpec& car) {
@@ -100,10 +112,12 @@ void GameState::seed_catalogs() {
 void GameState::new_game() {
     started_ = true;
     cash_ = kStartingCash;
+    reputation_ = 0;
+    wins_ = 0;
+    losses_ = 0;
     garage_.clear();
     spare_parts_.clear();
     active_car_ = 0;
-    opponent_index_ = 0;
     seed_catalogs();
 }
 
@@ -138,13 +152,51 @@ bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     }
 
     cash_ -= spec.price;
-    garage_.push_back(OwnedCar{spec, {}});
+    garage_.push_back(OwnedCar{spec, {}, 100});
     active_car_ = garage_.size() - 1;
 
     CarSpec replacement = spec;
     replacement.price = std::max(600, spec.price + 175);
     replacement.horsepower += 5;
     classifieds_[listing_index] = replacement;
+    return true;
+}
+
+bool GameState::sell_active_car(int* sale_price, std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        if (error) *error = "NO CAR TO SELL";
+        return false;
+    }
+
+    const int price = car->resale_value();
+    cash_ += price;
+    if (sale_price) *sale_price = price;
+    garage_.erase(garage_.begin() + static_cast<std::ptrdiff_t>(active_car_));
+    if (garage_.empty()) active_car_ = 0;
+    else if (active_car_ >= garage_.size()) active_car_ = garage_.size() - 1;
+    return true;
+}
+
+bool GameState::repair_active_car(int* repair_price, std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        if (error) *error = "NO CAR TO REPAIR";
+        return false;
+    }
+    const int price = car->repair_cost();
+    if (price <= 0) {
+        if (error) *error = "CAR IS ALREADY 100 PERCENT";
+        return false;
+    }
+    if (cash_ < price) {
+        if (error) *error = "NOT ENOUGH CASH TO REPAIR";
+        return false;
+    }
+
+    cash_ -= price;
+    car->condition = 100;
+    if (repair_price) *repair_price = price;
     return true;
 }
 
@@ -156,8 +208,6 @@ void GameState::install_part(OwnedCar& car, const PartSpec& part) {
         return;
     }
 
-    // Street Rod-style garage behaviour: the removed component is not destroyed.
-    // It goes back into the player's parts bin and can be installed again later.
     spare_parts_.push_back(*it);
     *it = part;
 }
@@ -211,10 +261,11 @@ bool GameState::install_spare(std::size_t spare_index, std::string* error) {
 }
 
 Opponent GameState::current_opponent() const {
-    const std::size_t index = opponent_index_ % kOpponentCars.size();
+    const std::size_t index = std::min<std::size_t>(static_cast<std::size_t>(reputation_ / 3),
+                                                     kOpponentCars.size() - 1);
     Opponent opponent;
     opponent.name = kOpponentNames[index];
-    opponent.car = OwnedCar{kOpponentCars[index], {}};
+    opponent.car = OwnedCar{kOpponentCars[index], {}, 100};
     opponent.reaction_seconds = 0.42 - static_cast<double>(index) * 0.055;
     return opponent;
 }
@@ -224,12 +275,22 @@ double GameState::quarter_mile_et(const OwnedCar& car, double reaction_seconds) 
     const double weight = static_cast<double>(std::max(1000, car.base.weight_lb));
     const double power_weight_et = 5.825 * std::cbrt(weight / hp);
     const double traction_penalty = std::max(0.0, 1.0 - car.traction()) * 2.2;
-    const double shift_multiplier = car.shift_factor();
-    return std::max(7.0, power_weight_et * shift_multiplier + traction_penalty + reaction_seconds);
+    return std::max(7.0, power_weight_et * car.shift_factor() + traction_penalty + reaction_seconds);
 }
 
-void GameState::advance_opponent() {
-    opponent_index_ = (opponent_index_ + 1) % kOpponentCars.size();
+void GameState::apply_race_outcome(OwnedCar& car, RaceResult& result, int win_reputation) {
+    result.wear = result.won ? 2 : 5;
+    car.condition = std::max(25, car.condition - result.wear);
+    if (result.won) {
+        ++wins_;
+        result.reputation_delta = win_reputation;
+        reputation_ += win_reputation;
+    } else {
+        ++losses_;
+        const int loss = reputation_ > 0 ? -1 : 0;
+        result.reputation_delta = loss;
+        reputation_ = std::max(0, reputation_ + loss);
+    }
 }
 
 RaceResult GameState::race_for_cash(int wager) {
@@ -251,8 +312,8 @@ RaceResult GameState::race_for_cash(int wager) {
     result.won = result.player_et <= result.opponent_et;
     result.cash_delta = result.won ? wager : -wager;
     cash_ += result.cash_delta;
+    apply_race_outcome(*player, result, 1);
     result.summary = result.won ? "YOU WON THE CASH RACE" : "YOU LOST THE CASH RACE";
-    advance_opponent();
     return result;
 }
 
@@ -270,6 +331,7 @@ RaceResult GameState::race_for_pink_slip() {
     result.player_et = quarter_mile_et(*player, 0.30);
     result.opponent_et = quarter_mile_et(opponent.car, opponent.reaction_seconds);
     result.won = result.player_et <= result.opponent_et;
+    apply_race_outcome(*player, result, 3);
 
     if (result.won) {
         garage_.push_back(opponent.car);
@@ -282,7 +344,6 @@ RaceResult GameState::race_for_pink_slip() {
         result.summary = "YOU LOST YOUR CAR";
     }
 
-    advance_opponent();
     return result;
 }
 
