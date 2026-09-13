@@ -118,6 +118,23 @@ namespace backyard_racer::scene_assets {
 #include "pixel_app_part1.inc"
 #undef infiltratr_surface_blit_scaled_nearest
 #include "pixel_app_part2.inc"
+
+// Keep the old primitive menu available only as a migration fallback, but do
+// not expose it as the active menu API.  The live UI below is asset-driven.
+#define menu_new legacy_menu_new
+#define menu_continue legacy_menu_continue
+#define menu_settings legacy_menu_settings
+#define menu_quit legacy_menu_quit
+#define menu_button legacy_menu_button
+#define draw_menu legacy_draw_menu
 #include "pixel_app_part3.inc"
+#undef draw_menu
+#undef menu_button
+#undef menu_quit
+#undef menu_settings
+#undef menu_continue
+#undef menu_new
+
+#include "pixel_menu_skin.inc"
 #include "pixel_app_part4.inc"
 #include "pixel_app_part5.inc"
