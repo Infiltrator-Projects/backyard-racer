@@ -111,6 +111,7 @@ namespace backyard_racer::scene_assets {
 #include "falcon_hd_asset.inc"
 #include "mustang_hd_asset.inc"
 #include "ui_font_asset.inc"
+#include "menu_chrome_asset.inc"
 }
 
 #define infiltratr_surface_blit_scaled_nearest backyard_surface_blit_scaled_smooth
