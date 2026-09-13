@@ -181,3 +181,92 @@ std::optional<OwnedCar> copy_active(const GameState& game) {
 }
 
 } // namespace
+
+struct PixelApp::Impl {
+    enum class Screen { Menu, Classifieds, Garage, Parts, Diner, Race, Result, Settings };
+    enum class Motion { Idle, Entering, Exiting };
+
+    GameState game;
+    DragRaceSession race;
+    Opponent opponent;
+    RaceResult result;
+    SurfaceOwner frame;
+    SurfaceOwner garage_source;
+    SurfaceOwner garage_scaled;
+    GlyphAtlas glyphs;
+    std::vector<CarArt> car_art;
+    VehicleCache vehicle_cache;
+
+    Screen screen = Screen::Menu;
+    Motion motion = Motion::Idle;
+    bool running = true;
+    bool dirty = true;
+    int width = 1280;
+    int height = 720;
+    int mouse_x = 0;
+    int mouse_y = 0;
+    std::string message = "BUY A CAR. BUILD IT. RACE IT.";
+
+    std::optional<OwnedCar> displayed;
+    std::optional<OwnedCar> incoming;
+    std::optional<std::size_t> displayed_index;
+    std::optional<std::size_t> incoming_index;
+    double car_x = 0.0;
+    double wheel_angle = 0.0;
+
+    bool pink_slip = false;
+    int wager = 0;
+    bool race_settled = false;
+
+    explicit Impl(int w, int h) : frame(w, h), width(w), height(h) {
+        load_assets();
+        resize(w, h);
+        if (const OwnedCar* car = game.active_car()) {
+            displayed = *car;
+            displayed_index = game.active_car_index();
+        }
+    }
+
+    void load_assets() {
+        garage_source = load_indexed_asset(scene_assets::garage_hd);
+
+        CarArt falcon;
+        falcon.id = "falcon64";
+        falcon.source = load_indexed_asset(scene_assets::falcon_hd);
+        falcon.rear_x = 0.225;
+        falcon.front_x = 0.775;
+        falcon.wheel_y = 0.80;
+        falcon.wheel_r = 0.13;
+        falcon.paint_min = 120;
+        falcon.paint_max = 248;
+        split_car_art(falcon);
+        car_art.push_back(std::move(falcon));
+
+        CarArt mustang;
+        mustang.id = "mustang65";
+        mustang.source = load_indexed_asset(scene_assets::mustang_hd);
+        mustang.rear_x = 0.207;
+        mustang.front_x = 0.765;
+        mustang.wheel_y = 0.75;
+        mustang.wheel_r = 0.175;
+        mustang.paint_min = 70;
+        mustang.paint_max = 205;
+        split_car_art(mustang);
+        car_art.push_back(std::move(mustang));
+    }
+
+    CarArt* art_for(const std::string& id) {
+        for (auto& art : car_art) if (art.id == id) return &art;
+        return nullptr;
+    }
+
+    void resize(int w, int h) {
+        width = std::max(640, w);
+        height = std::max(480, h);
+        frame.resize(width, height);
+        if (!garage_source.empty()) garage_scaled = scaled_copy(garage_source, width, height);
+        vehicle_cache.id.clear();
+        dirty = true;
+    }
+
+    void text(int x, int y, const std::string& value,
