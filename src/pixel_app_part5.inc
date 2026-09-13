@@ -174,6 +174,8 @@
             dirty = true;
         }
     }
+
+#include "pixel_menu_skin.inc"
 };
 
 PixelApp::PixelApp(int width, int height) : impl_(std::make_unique<Impl>(width, height)) {}
