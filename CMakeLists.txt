@@ -23,6 +23,7 @@ find_package(ZLIB REQUIRED)
 
 add_library(backyard-gameplay STATIC
     src/gameplay.cpp
+    src/vehicle_data.cpp
     src/race_session.cpp)
 target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
