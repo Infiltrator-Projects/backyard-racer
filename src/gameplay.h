@@ -28,7 +28,21 @@ struct PartSpec {
     double shift_gain = 0.0;
 };
 
+struct EngineSpec {
+    std::string id;
+    std::string manufacturer;
+    std::string family;
+    std::string name;
+    std::string layout;
+    int displacement_ci = 0;
+    int horsepower = 0;
+    int weight_lb = 0;
+    int price = 0;
+};
+
 struct CarSpec {
+    // id is the body/art identity. Multiple drivetrain variants intentionally
+    // share it, e.g. every 1965 Mustang uses the mustang65 body artwork.
     std::string id;
     int year = 0;
     std::string make;
@@ -38,6 +52,14 @@ struct CarSpec {
     int weight_lb = 0;
     double traction = 1.0;
     int gears = 4;
+
+    // Variant/fitment metadata introduced with the weekly used-car market.
+    std::string variant_id;
+    std::string variant;
+    std::string chassis_family;
+    std::string engine_id;
+    int rarity_weight = 100;
+    bool starter_ok = false;
 };
 
 struct PaintState {
@@ -90,7 +112,10 @@ public:
     int reputation() const { return reputation_; }
     int wins() const { return wins_; }
     int losses() const { return losses_; }
+    int current_week() const { return current_week_; }
     const std::vector<CarSpec>& classifieds() const { return classifieds_; }
+    const std::vector<CarSpec>& vehicle_catalog() const { return vehicle_catalog_; }
+    const std::vector<EngineSpec>& engine_catalog() const { return engine_catalog_; }
     const std::vector<PartSpec>& parts_catalog() const { return parts_catalog_; }
     const std::vector<PartSpec>& spare_parts() const { return spare_parts_; }
     const std::vector<OwnedCar>& garage() const { return garage_; }
@@ -99,6 +124,10 @@ public:
     const OwnedCar* active_car() const;
     OwnedCar* active_car();
     void next_car();
+
+    // Time only advances when the game explicitly says so. This keeps a week's
+    // newspaper stable across visits/reloads, then regenerates it atomically.
+    void advance_week();
 
     bool buy_car(std::size_t listing_index, std::string* error = nullptr);
     bool sell_active_car(int* sale_price = nullptr, std::string* error = nullptr);
@@ -109,6 +138,10 @@ public:
                             std::string* error = nullptr);
     bool buy_part(std::size_t part_index, std::string* error = nullptr);
     bool install_spare(std::size_t spare_index, std::string* error = nullptr);
+
+    std::vector<EngineSpec> compatible_engines() const;
+    bool swap_engine(const std::string& engine_id, int* installed_price = nullptr,
+                     std::string* error = nullptr);
 
     Opponent current_opponent() const;
     RaceResult settle_race(const Opponent& opponent, int wager, bool pink_slip,
@@ -128,6 +161,10 @@ private:
     int reputation_ = 0;
     int wins_ = 0;
     int losses_ = 0;
+    int current_week_ = 1;
+    std::uint32_t market_seed_ = 0;
+    std::vector<CarSpec> vehicle_catalog_;
+    std::vector<EngineSpec> engine_catalog_;
     std::vector<CarSpec> classifieds_;
     std::vector<PartSpec> parts_catalog_;
     std::vector<PartSpec> spare_parts_;
@@ -135,6 +172,7 @@ private:
     std::size_t active_car_ = 0;
 
     void seed_catalogs();
+    void generate_classifieds();
     void install_part(OwnedCar& car, const PartSpec& part);
     void apply_race_outcome(OwnedCar& car, RaceResult& result, int win_reputation);
     void persist() const;
