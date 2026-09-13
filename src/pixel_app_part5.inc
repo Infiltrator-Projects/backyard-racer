@@ -15,12 +15,20 @@
                 const auto new_car = copy_active(game);
                 const auto new_index = new_car ? std::optional<std::size_t>(game.active_car_index()) : std::nullopt;
                 message = "PURCHASED " + car_display_name(game.active_car()->base) +
+                          (game.active_car()->base.variant.empty() ? std::string() :
+                              " - " + game.active_car()->base.variant) +
                           " - " + game.active_car()->paint.name;
                 screen = Screen::Garage;
                 begin_change(old_car, old_index, new_car, new_index);
             } else {
                 message = error;
             }
+            dirty = true;
+            return;
+        }
+        if (Rect{width - 385, height - 62, 160, 36}.contains(x, y)) {
+            game.advance_week();
+            message = "WEEK " + std::to_string(game.current_week()) + " - NEW CLASSIFIEDS";
             dirty = true;
             return;
         }
@@ -76,12 +84,20 @@
             dirty = true;
             return;
         }
+        if (!game.active_car()) return;
+
+        const int left_x = 54;
+        const int right_x = width / 2 + 20;
+        const int left_w = width / 2 - 82;
+        const int right_w = width - right_x - 54;
+        const int row_h = 34;
+        const int first_row_y = 174;
+
         const auto& parts = game.parts_catalog();
-        const int row_h = 36;
         for (std::size_t i = 0; i < parts.size(); ++i) {
-            const int row_y = 142 + static_cast<int>(i) * row_h;
-            if (row_y + row_h > height - 120) break;
-            if (Rect{54, row_y, width - 108, row_h - 4}.contains(x, y)) {
+            const int row_y = first_row_y + static_cast<int>(i) * row_h;
+            if (row_y + row_h > height - 132) break;
+            if (Rect{left_x, row_y, left_w, row_h - 3}.contains(x, y)) {
                 std::string error;
                 if (game.buy_part(i, &error)) message = "INSTALLED " + parts[i].name;
                 else message = error;
@@ -89,11 +105,35 @@
                 return;
             }
         }
-        if (!game.spare_parts().empty() && y >= height - 165 && y <= height - 120) {
+
+        const auto engines = game.compatible_engines();
+        for (std::size_t i = 0; i < engines.size(); ++i) {
+            const int row_y = first_row_y + static_cast<int>(i) * row_h;
+            if (row_y + row_h > height - 132) break;
+            if (Rect{right_x, row_y, right_w, row_h - 3}.contains(x, y)) {
+                std::string error;
+                int price = 0;
+                const std::string name = engines[i].name;
+                if (game.swap_engine(engines[i].id, &price, &error)) {
+                    message = "INSTALLED " + name + " FOR $" + std::to_string(price);
+                    displayed = copy_active(game);
+                    vehicle_cache.id.clear();
+                } else {
+                    message = error;
+                }
+                dirty = true;
+                return;
+            }
+        }
+
+        if (!game.spare_parts().empty() && y >= height - 122 && y <= height - 96) {
             std::string error;
             const std::string name = game.spare_parts().front().name;
-            if (game.install_spare(0, &error)) message = "INSTALLED SPARE " + name;
-            else message = error;
+            if (game.install_spare(0, &error)) {
+                message = "INSTALLED SPARE " + name;
+                displayed = copy_active(game);
+                vehicle_cache.id.clear();
+            } else message = error;
             dirty = true;
         }
     }
