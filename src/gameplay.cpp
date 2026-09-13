@@ -6,6 +6,7 @@
 // while this implementation is a fresh modern C++ port for Backyard Racer.
 
 #include "gameplay.h"
+#include "vehicle_data.h"
 
 #include <algorithm>
 #include <array>
@@ -14,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <system_error>
@@ -23,9 +25,10 @@ namespace backyard_racer {
 namespace {
 
 constexpr int kStartingCash = 4000;
-constexpr int kSaveVersion = 2;
+constexpr int kSaveVersion = 3;
 constexpr std::size_t kMaxSavedCars = 64;
 constexpr std::size_t kMaxSavedParts = 256;
+constexpr std::size_t kWeeklyListingCount = 8;
 
 struct FactoryPaint {
     const char* name;
@@ -35,9 +38,12 @@ struct FactoryPaint {
 };
 
 const std::vector<CarSpec> kOpponentCars = {
-    {"opp_nova", 1966, "CHEVROLET", "NOVA", 2600, 220, 3000, 0.91, 4},
-    {"opp_cougar", 1968, "MERCURY", "COUGAR", 3400, 260, 3400, 0.93, 4},
-    {"opp_roadrunner", 1969, "PLYMOUTH", "ROAD RUNNER", 4300, 335, 3650, 0.95, 4},
+    {"nova66", 1966, "CHEVROLET", "NOVA", 2600, 275, 2800, 0.93, 4,
+     "opp_nova_327", "327 4V V8", "chevy_nova66", "chevy_327_4v_275", 20, false},
+    {"cougar68", 1968, "MERCURY", "COUGAR GT", 3900, 325, 3440, 0.95, 4,
+     "opp_cougar_390", "390 GT FE V8", "ford_cougar68", "ford_390_fe_325", 20, false},
+    {"roadrunner69", 1969, "PLYMOUTH", "ROAD RUNNER", 4300, 335, 3450, 0.95, 4,
+     "opp_roadrunner_383", "383 HP V8", "mopar_roadrunner69", "mopar_383_hp_335", 20, false},
     {"opp_boss", 1970, "FORD", "MUSTANG BOSS", 5200, 375, 3500, 0.97, 4},
 };
 
@@ -69,12 +75,13 @@ PaintState choose_factory_paint(const CarSpec& car) {
         {"POPPY RED", 207, 72, 38},
         {"SILVER BLUE", 112, 139, 153},
     }};
-    static const std::array<FactoryPaint, 5> generic60s{{
+    static const std::array<FactoryPaint, 6> generic60s{{
         {"FACTORY WHITE", 238, 236, 224},
         {"FACTORY RED", 171, 48, 43},
         {"FACTORY BLUE", 54, 80, 112},
         {"FACTORY GREEN", 62, 91, 70},
         {"FACTORY BLACK", 34, 34, 32},
+        {"FACTORY GOLD", 171, 143, 91},
     }};
 
     std::random_device rd;
@@ -91,20 +98,50 @@ PaintState choose_factory_paint(const CarSpec& car) {
     return paint_from(generic60s[pick(generator)]);
 }
 
+std::uint32_t fresh_market_seed() {
+    std::random_device rd;
+    std::uint32_t seed = rd();
+    seed ^= (rd() << 1U) | (rd() >> 31U);
+    if (seed == 0) seed = 0xB4C4A4D1U;
+    return seed;
+}
+
+std::uint32_t market_week_seed(std::uint32_t seed, int week) {
+    std::uint32_t value = seed ^ (0x9E3779B9U * static_cast<std::uint32_t>(week));
+    value ^= value >> 16U;
+    value *= 0x7FEB352DU;
+    value ^= value >> 15U;
+    value *= 0x846CA68BU;
+    value ^= value >> 16U;
+    return value;
+}
+
 void write_car(std::ostream& out, const CarSpec& car) {
     out << "CAR " << std::quoted(car.id) << ' ' << car.year << ' '
         << std::quoted(car.make) << ' ' << std::quoted(car.model) << ' '
         << car.price << ' ' << car.horsepower << ' ' << car.weight_lb << ' '
-        << std::setprecision(17) << car.traction << ' ' << car.gears << '\n';
+        << std::setprecision(17) << car.traction << ' ' << car.gears << ' '
+        << std::quoted(car.variant_id) << ' ' << std::quoted(car.variant) << ' '
+        << std::quoted(car.chassis_family) << ' ' << std::quoted(car.engine_id) << ' '
+        << car.rarity_weight << ' ' << (car.starter_ok ? 1 : 0) << '\n';
 }
 
-bool read_car(std::istream& in, CarSpec& car) {
+bool read_car(std::istream& in, CarSpec& car, int version) {
     std::string marker;
     if (!(in >> marker) || marker != "CAR") return false;
-    return static_cast<bool>(in >> std::quoted(car.id) >> car.year
-                                >> std::quoted(car.make) >> std::quoted(car.model)
-                                >> car.price >> car.horsepower >> car.weight_lb
-                                >> car.traction >> car.gears);
+    if (!(in >> std::quoted(car.id) >> car.year
+             >> std::quoted(car.make) >> std::quoted(car.model)
+             >> car.price >> car.horsepower >> car.weight_lb
+             >> car.traction >> car.gears)) return false;
+    if (version >= 3) {
+        int starter = 0;
+        if (!(in >> std::quoted(car.variant_id) >> std::quoted(car.variant)
+                 >> std::quoted(car.chassis_family) >> std::quoted(car.engine_id)
+                 >> car.rarity_weight >> starter)) return false;
+        if (starter != 0 && starter != 1) return false;
+        car.starter_ok = starter != 0;
+    }
+    return true;
 }
 
 void write_part(std::ostream& out, const PartSpec& part) {
@@ -131,12 +168,55 @@ bool sane_car(const CarSpec& car) {
     return !car.id.empty() && car.year >= 1900 && car.year <= 2100 &&
            car.price >= 0 && car.horsepower > 0 && car.weight_lb >= 1000 &&
            std::isfinite(car.traction) && car.traction > 0.0 &&
-           car.gears >= 1 && car.gears <= 10;
+           car.gears >= 1 && car.gears <= 10 && car.rarity_weight >= 0;
 }
 
 bool sane_part(const PartSpec& part) {
     return !part.id.empty() && part.price >= 0 &&
            std::isfinite(part.traction_gain) && std::isfinite(part.shift_gain);
+}
+
+void enrich_legacy_car(CarSpec& car) {
+    if (!car.chassis_family.empty() && !car.engine_id.empty()) return;
+    const auto& variants = historical_vehicle_variants();
+    const CarSpec* best = nullptr;
+    int best_delta = std::numeric_limits<int>::max();
+    for (const auto& candidate : variants) {
+        if (candidate.id != car.id) continue;
+        const int delta = std::abs(candidate.horsepower - car.horsepower);
+        if (delta < best_delta) {
+            best = &candidate;
+            best_delta = delta;
+        }
+    }
+    if (!best) return;
+    car.variant_id = best->variant_id;
+    car.variant = best->variant;
+    car.chassis_family = best->chassis_family;
+    car.engine_id = best->engine_id;
+    car.rarity_weight = best->rarity_weight;
+    car.starter_ok = best->starter_ok;
+}
+
+PartSpec engine_spare_part(const EngineSpec& engine) {
+    return PartSpec{"engine:" + engine.id, "ENGINE - " + engine.name,
+                    PartType::Engine, engine.price, 0, 0.0, 0.0};
+}
+
+const EngineSpec* engine_from_part(const PartSpec& part) {
+    constexpr std::string_view prefix = "engine:";
+    if (part.type != PartType::Engine || part.id.rfind(prefix, 0) != 0) return nullptr;
+    return find_engine_spec(std::string_view(part.id).substr(prefix.size()));
+}
+
+void apply_engine(OwnedCar& car, const EngineSpec& next) {
+    const EngineSpec* previous = find_engine_spec(car.base.engine_id);
+    if (previous) {
+        car.base.weight_lb = std::max(1000, car.base.weight_lb + next.weight_lb - previous->weight_lb);
+    }
+    car.base.engine_id = next.id;
+    car.base.horsepower = next.horsepower;
+    car.base.variant = next.name;
 }
 
 } // namespace
@@ -201,17 +281,8 @@ std::string part_type_name(PartType type) {
 }
 
 void GameState::seed_catalogs() {
-    classifieds_ = {
-        {"falcon64", 1964, "FORD", "FALCON", 1200, 150, 2700, 0.88, 3},
-        {"mustang65", 1965, "FORD", "MUSTANG", 1800, 200, 2900, 0.90, 4},
-        {"nova66", 1966, "CHEVROLET", "NOVA", 2100, 220, 3000, 0.91, 4},
-        {"camaro67", 1967, "CHEVROLET", "CAMARO", 2800, 275, 3250, 0.93, 4},
-        {"charger68", 1968, "DODGE", "CHARGER", 3300, 325, 3700, 0.94, 4},
-        {"gto69", 1969, "PONTIAC", "GTO", 3600, 350, 3600, 0.95, 4},
-        {"roadrunner69", 1969, "PLYMOUTH", "ROAD RUNNER", 3800, 335, 3650, 0.95, 4},
-        {"challenger70", 1970, "DODGE", "CHALLENGER", 4200, 375, 3750, 0.96, 4},
-    };
-
+    vehicle_catalog_ = historical_vehicle_variants();
+    engine_catalog_ = historical_engine_catalog();
     parts_catalog_ = {
         {"carb_4bbl", "4 BARREL CARB", PartType::Carburetor, 280, 18, 0.00, 0.00},
         {"carb_dual", "DUAL QUAD CARBS", PartType::Carburetor, 520, 34, 0.00, 0.00},
@@ -223,9 +294,69 @@ void GameState::seed_catalogs() {
         {"trans_quick", "QUICK SHIFT 4 SPEED", PartType::Transmission, 850, 0, 0.00, -0.07},
         {"tires_bias", "STICKY BIAS PLY", PartType::Tires, 380, 0, 0.07, 0.00},
         {"tires_drag", "DRAG SLICKS", PartType::Tires, 650, 0, 0.12, 0.00},
-        {"engine_street_v8", "BUILT STREET V8", PartType::Engine, 1100, 90, 0.00, 0.00},
-        {"engine_race_v8", "RACE PREP V8", PartType::Engine, 1850, 155, 0.00, 0.00},
     };
+}
+
+void GameState::generate_classifieds() {
+    classifieds_.clear();
+    if (vehicle_catalog_.empty()) return;
+
+    std::mt19937 generator(market_week_seed(market_seed_, current_week_));
+    std::vector<std::size_t> available(vehicle_catalog_.size());
+    for (std::size_t i = 0; i < available.size(); ++i) available[i] = i;
+
+    auto body_count = [&](const std::string& body_id) {
+        return static_cast<int>(std::count_if(classifieds_.begin(), classifieds_.end(),
+            [&](const CarSpec& car) { return car.id == body_id; }));
+    };
+
+    auto choose = [&](bool starter_only, bool enforce_body_limit) -> std::size_t {
+        std::uint64_t total = 0;
+        for (const std::size_t index : available) {
+            const CarSpec& candidate = vehicle_catalog_[index];
+            if (starter_only && !candidate.starter_ok) continue;
+            if (enforce_body_limit && body_count(candidate.id) >= 2) continue;
+            total += static_cast<std::uint64_t>(std::max(1, candidate.rarity_weight));
+        }
+        if (total == 0) return vehicle_catalog_.size();
+        std::uniform_int_distribution<std::uint64_t> draw(1, total);
+        std::uint64_t needle = draw(generator);
+        for (const std::size_t index : available) {
+            const CarSpec& candidate = vehicle_catalog_[index];
+            if (starter_only && !candidate.starter_ok) continue;
+            if (enforce_body_limit && body_count(candidate.id) >= 2) continue;
+            const std::uint64_t weight = static_cast<std::uint64_t>(std::max(1, candidate.rarity_weight));
+            if (needle <= weight) return index;
+            needle -= weight;
+        }
+        return vehicle_catalog_.size();
+    };
+
+    auto add_listing = [&](std::size_t catalog_index) {
+        auto it = std::find(available.begin(), available.end(), catalog_index);
+        if (it == available.end()) return;
+        CarSpec listing = vehicle_catalog_[catalog_index];
+        std::uniform_int_distribution<int> price_adjust(-10, 12);
+        const int percent = 100 + price_adjust(generator);
+        listing.price = std::max(500, (listing.price * percent + 50) / 100);
+        classifieds_.push_back(std::move(listing));
+        available.erase(it);
+    };
+
+    // Every paper carries at least two realistic starter choices. They are
+    // variants, so a cheap I6 and a V8 of the same body can both appear.
+    for (int i = 0; i < 2 && classifieds_.size() < kWeeklyListingCount; ++i) {
+        const std::size_t index = choose(true, true);
+        if (index == vehicle_catalog_.size()) break;
+        add_listing(index);
+    }
+
+    while (!available.empty() && classifieds_.size() < kWeeklyListingCount) {
+        std::size_t index = choose(false, true);
+        if (index == vehicle_catalog_.size()) index = choose(false, false);
+        if (index == vehicle_catalog_.size()) break;
+        add_listing(index);
+    }
 }
 
 std::string GameState::default_save_path() {
@@ -253,10 +384,20 @@ void GameState::new_game() {
     reputation_ = 0;
     wins_ = 0;
     losses_ = 0;
+    current_week_ = 1;
+    market_seed_ = fresh_market_seed();
     garage_.clear();
     spare_parts_.clear();
     active_car_ = 0;
     seed_catalogs();
+    generate_classifieds();
+    persist();
+}
+
+void GameState::advance_week() {
+    if (!started_) return;
+    ++current_week_;
+    generate_classifieds();
     persist();
 }
 
@@ -294,11 +435,7 @@ bool GameState::buy_car(std::size_t listing_index, std::string* error) {
     cash_ -= spec.price;
     garage_.push_back(OwnedCar{spec, {}, 100, choose_factory_paint(spec)});
     active_car_ = garage_.size() - 1;
-
-    CarSpec replacement = spec;
-    replacement.price = std::max(600, spec.price + 175);
-    replacement.horsepower += 5;
-    classifieds_[listing_index] = replacement;
+    classifieds_.erase(classifieds_.begin() + static_cast<std::ptrdiff_t>(listing_index));
     persist();
     return true;
 }
@@ -391,6 +528,66 @@ bool GameState::buy_part(std::size_t part_index, std::string* error) {
     return true;
 }
 
+std::vector<EngineSpec> GameState::compatible_engines() const {
+    std::vector<EngineSpec> result;
+    const OwnedCar* car = active_car();
+    if (!car || car->base.chassis_family.empty()) return result;
+    for (const auto& engine : engine_catalog_) {
+        if (engine.id == car->base.engine_id) continue;
+        if (engine_family_fits_chassis(car->base.chassis_family, engine.family)) {
+            result.push_back(engine);
+        }
+    }
+    std::stable_sort(result.begin(), result.end(), [](const EngineSpec& a, const EngineSpec& b) {
+        if (a.price != b.price) return a.price < b.price;
+        return a.horsepower < b.horsepower;
+    });
+    return result;
+}
+
+bool GameState::swap_engine(const std::string& engine_id, int* installed_price,
+                            std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        set_error(error, "BUY A CAR FIRST");
+        return false;
+    }
+    const EngineSpec* next = find_engine_spec(engine_id);
+    if (!next) {
+        set_error(error, "UNKNOWN ENGINE");
+        return false;
+    }
+    if (car->base.engine_id == next->id) {
+        set_error(error, "THAT ENGINE IS ALREADY INSTALLED");
+        return false;
+    }
+    if (!engine_family_fits_chassis(car->base.chassis_family, next->family)) {
+        set_error(error, "ENGINE DOES NOT FIT THIS CHASSIS");
+        return false;
+    }
+    if (cash_ < next->price) {
+        set_error(error, "NOT ENOUGH CASH FOR THAT ENGINE");
+        return false;
+    }
+
+    if (const EngineSpec* previous = find_engine_spec(car->base.engine_id)) {
+        spare_parts_.push_back(engine_spare_part(*previous));
+    }
+    // Retire any pre-v3 generic engine upgrade when a real engine is fitted.
+    auto legacy = std::find_if(car->installed_parts.begin(), car->installed_parts.end(),
+        [](const PartSpec& part) { return part.type == PartType::Engine; });
+    if (legacy != car->installed_parts.end()) {
+        spare_parts_.push_back(*legacy);
+        car->installed_parts.erase(legacy);
+    }
+
+    cash_ -= next->price;
+    apply_engine(*car, *next);
+    if (installed_price) *installed_price = next->price;
+    persist();
+    return true;
+}
+
 bool GameState::install_spare(std::size_t spare_index, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
@@ -403,8 +600,29 @@ bool GameState::install_spare(std::size_t spare_index, std::string* error) {
     }
 
     PartSpec part = spare_parts_[spare_index];
-    spare_parts_.erase(spare_parts_.begin() + static_cast<std::ptrdiff_t>(spare_index));
+    if (const EngineSpec* next = engine_from_part(part)) {
+        if (!engine_family_fits_chassis(car->base.chassis_family, next->family)) {
+            set_error(error, "SPARE ENGINE DOES NOT FIT THIS CHASSIS");
+            return false;
+        }
+        if (car->base.engine_id == next->id) {
+            set_error(error, "THAT ENGINE IS ALREADY INSTALLED");
+            return false;
+        }
+        PartSpec old_engine;
+        bool have_old = false;
+        if (const EngineSpec* previous = find_engine_spec(car->base.engine_id)) {
+            old_engine = engine_spare_part(*previous);
+            have_old = true;
+        }
+        spare_parts_.erase(spare_parts_.begin() + static_cast<std::ptrdiff_t>(spare_index));
+        apply_engine(*car, *next);
+        if (have_old) spare_parts_.push_back(std::move(old_engine));
+        persist();
+        return true;
+    }
 
+    spare_parts_.erase(spare_parts_.begin() + static_cast<std::ptrdiff_t>(spare_index));
     auto it = std::find_if(car->installed_parts.begin(), car->installed_parts.end(),
                            [&](const PartSpec& existing) { return existing.type == part.type; });
     if (it == car->installed_parts.end()) {
@@ -535,7 +753,8 @@ bool GameState::save_to(const std::string& path, std::string* error) const {
 
     out << "BACKYARD_RACER_SAVE " << kSaveVersion << '\n';
     out << "STATE " << cash_ << ' ' << reputation_ << ' ' << wins_ << ' '
-        << losses_ << ' ' << active_car_ << '\n';
+        << losses_ << ' ' << active_car_ << ' ' << current_week_ << ' '
+        << market_seed_ << '\n';
 
     out << "CLASSIFIEDS " << classifieds_.size() << '\n';
     for (const auto& car : classifieds_) write_car(out, car);
@@ -597,15 +816,26 @@ bool GameState::load_from(const std::string& path, std::string* error) {
 
     int cash = 0, reputation = 0, wins = 0, losses = 0;
     std::size_t active = 0;
+    int week = 1;
+    std::uint32_t market_seed = 0;
     if (!(in >> marker >> cash >> reputation >> wins >> losses >> active) || marker != "STATE" ||
         cash < 0 || reputation < 0 || wins < 0 || losses < 0) {
         set_error(error, "CORRUPT SAVE STATE");
         return false;
     }
+    if (version >= 3) {
+        if (!(in >> week >> market_seed) || week < 1 || market_seed == 0) {
+            set_error(error, "CORRUPT WEEKLY MARKET STATE");
+            return false;
+        }
+    } else {
+        market_seed = 0xB4C4A4D1U ^ static_cast<std::uint32_t>(cash) ^
+                      (static_cast<std::uint32_t>(reputation) << 16U);
+    }
 
     std::size_t classified_count = 0;
     if (!(in >> marker >> classified_count) || marker != "CLASSIFIEDS" ||
-        classified_count == 0 || classified_count > kMaxSavedCars) {
+        classified_count > kMaxSavedCars) {
         set_error(error, "CORRUPT CLASSIFIEDS DATA");
         return false;
     }
@@ -613,10 +843,11 @@ bool GameState::load_from(const std::string& path, std::string* error) {
     classifieds.reserve(classified_count);
     for (std::size_t i = 0; i < classified_count; ++i) {
         CarSpec car;
-        if (!read_car(in, car) || !sane_car(car)) {
+        if (!read_car(in, car, version) || !sane_car(car)) {
             set_error(error, "CORRUPT CLASSIFIED CAR DATA");
             return false;
         }
+        if (version < 3) enrich_legacy_car(car);
         classifieds.push_back(std::move(car));
     }
 
@@ -651,10 +882,11 @@ bool GameState::load_from(const std::string& path, std::string* error) {
         }
         OwnedCar owned;
         owned.condition = condition;
-        if (!read_car(in, owned.base) || !sane_car(owned.base)) {
+        if (!read_car(in, owned.base, version) || !sane_car(owned.base)) {
             set_error(error, "CORRUPT GARAGE CAR DATA");
             return false;
         }
+        if (version < 3) enrich_legacy_car(owned.base);
         if (version == 1) paint = choose_factory_paint(owned.base);
         owned.paint = std::move(paint);
         owned.installed_parts.reserve(installed_count);
@@ -704,6 +936,8 @@ bool GameState::load_from(const std::string& path, std::string* error) {
     reputation_ = reputation;
     wins_ = wins;
     losses_ = losses;
+    current_week_ = week;
+    market_seed_ = market_seed;
     started_ = true;
     return true;
 }
