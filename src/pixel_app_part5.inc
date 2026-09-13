@@ -1,12 +1,7 @@
-        const int left = 48;
-        const int top = 112;
-        const int card_w = (width - 110) / 2;
-        const int card_h = 112;
+        (void)gap;
         const auto& cars = game.classifieds();
         for (std::size_t i = 0; i < cars.size(); ++i) {
-            const int col = static_cast<int>(i % 2);
-            const int row = static_cast<int>(i / 2);
-            Rect card{left + col * (card_w + gap), top + row * (card_h + 10), card_w, card_h};
+            const Rect card = classified_ad_rect(i);
             if (!card.contains(x, y)) continue;
             const auto old_car = displayed;
             const auto old_index = displayed_index;
@@ -26,13 +21,13 @@
             dirty = true;
             return;
         }
-        if (Rect{width - 385, height - 62, 160, 36}.contains(x, y)) {
+        if (newspaper_next_week_rect().contains(x, y)) {
             game.advance_week();
             message = "WEEK " + std::to_string(game.current_week()) + " - NEW CLASSIFIEDS";
             dirty = true;
             return;
         }
-        if (Rect{width - 205, height - 62, 160, 36}.contains(x, y)) {
+        if (newspaper_garage_rect().contains(x, y)) {
             screen = Screen::Garage;
             sync_garage_to_active();
         }
