@@ -6,7 +6,7 @@
                      GlyphAtlas::Tone tone = GlyphAtlas::Tone::Pale, int scale = 2) {
         const int tw = glyphs.width(value, scale);
         text(area.x + (area.w - tw) / 2,
-             area.y + (area.h - 8 * scale) / 2,
+             area.y + (area.h - 10 * scale) / 2,
              value, tone, scale);
     }
 
@@ -203,23 +203,55 @@
         return true;
     }
 
-    Rect menu_new() const { return {70, 252, 330, 48}; }
-    Rect menu_continue() const { return {70, 314, 330, 48}; }
-    Rect menu_settings() const { return {70, 376, 330, 48}; }
-    Rect menu_quit() const { return {70, 438, 330, 48}; }
+    Rect menu_new() const { return {72, 252, 300, 48}; }
+    Rect menu_continue() const { return {72, 312, 300, 48}; }
+    Rect menu_settings() const { return {72, 372, 300, 48}; }
+    Rect menu_quit() const { return {72, 432, 300, 48}; }
+
+    void menu_button(Rect r, const std::string& label, bool enabled = true) {
+        const bool hover = enabled && r.contains(mouse_x, mouse_y);
+        if (enabled) {
+            frame.blend(r.x, r.y, r.w, r.h,
+                        hover ? rgba(17, 17, 18, 226) : rgba(8, 8, 9, 174));
+            frame.fill(r.x, r.y, hover ? 6 : 3, r.h,
+                       hover ? rgba(166, 45, 35) : rgba(177, 146, 92));
+            frame.fill(r.x + 14, r.y + r.h - 1, r.w - 14, 1, rgba(83, 79, 71));
+            text(r.x + 22, r.y + 13, label,
+                 hover ? GlyphAtlas::Tone::Gold : GlyphAtlas::Tone::Pale, 2);
+        } else {
+            frame.blend(r.x, r.y, r.w, r.h, rgba(8, 8, 9, 112));
+            frame.fill(r.x, r.y, 3, r.h, rgba(70, 67, 62));
+            text(r.x + 22, r.y + 13, label, GlyphAtlas::Tone::Dark, 2);
+        }
+    }
 
     void draw_menu() {
         if (!garage_scaled.empty()) infiltratr_surface_copy(&frame.get(), &garage_scaled.get());
         else frame.clear(rgba(37, 34, 31));
-        frame.blend(0, 0, width, height, rgba(0, 0, 0, 90));
-        panel({32, 92, 455, 500});
-        text(62, 126, "BACKYARD RACER", GlyphAtlas::Tone::Gold, 3);
-        text(62, 166, "BUILD IT - RACE IT - RISK IT", GlyphAtlas::Tone::Pale, 2);
-        button(menu_new(), "NEW GAME");
-        button(menu_continue(), "CONTINUE", game.started());
-        button(menu_settings(), "SETTINGS");
-        button(menu_quit(), "QUIT");
-        text(62, 548, message, GlyphAtlas::Tone::Pale, 2);
+
+        // Preserve the garage as the hero image. The menu now sits in a graded
+        // left-side scrim instead of a giant opaque box covering the artwork.
+        frame.blend(0, 0, width, height, rgba(0, 0, 0, 18));
+        for (int i = 0; i < 7; ++i) {
+            const int alpha = std::max(0, 162 - i * 22);
+            frame.blend(i * 72, 0, 72, height,
+                        rgba(0, 0, 0, static_cast<std::uint8_t>(alpha)));
+        }
+
+        text(74, 103, "BACKYARD RACER", GlyphAtlas::Tone::Dark, 3);
+        text(72, 101, "BACKYARD RACER", GlyphAtlas::Tone::Gold, 3);
+        text(72, 151, "Build it. Race it. Risk it.", GlyphAtlas::Tone::Pale, 2);
+        frame.fill(72, 190, 72, 3, rgba(166, 45, 35));
+
+        menu_button(menu_new(), "New Game");
+        menu_button(menu_continue(), "Continue", game.started());
+        menu_button(menu_settings(), "Settings");
+        menu_button(menu_quit(), "Quit");
+
+        const std::string footer = game.started() ?
+            "Continue where you left off." : "Buy a car. Build it. Race it.";
+        text(72, 524, footer, GlyphAtlas::Tone::Pale, 2);
+        if (!message.empty()) text(72, 558, message, GlyphAtlas::Tone::Dark, 1);
     }
 
     void draw_classifieds() {
