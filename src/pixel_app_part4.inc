@@ -3,8 +3,11 @@
             if (card.contains(mouse_x, mouse_y)) frame.fill(card.x, card.y, card.w, card.h, rgba(248, 241, 214));
             outline(frame.get(), card.x, card.y, card.w, card.h, rgba(68, 61, 50),
                     card.contains(mouse_x, mouse_y) ? 3 : 1);
-            text(card.x + 12, card.y + 13, car_display_name(cars[i]), GlyphAtlas::Tone::Dark, 2);
-            text(card.x + 12, card.y + 41,
+            text(card.x + 12, card.y + 11, car_display_name(cars[i]), GlyphAtlas::Tone::Dark, 2);
+            if (!cars[i].variant.empty()) {
+                text(card.x + 12, card.y + 38, cars[i].variant, GlyphAtlas::Tone::Dark, 1);
+            }
+            text(card.x + 12, card.y + 59,
                  "$" + std::to_string(cars[i].price) + "  " +
                  std::to_string(cars[i].horsepower) + " HP  " +
                  std::to_string(cars[i].weight_lb) + " LB",
@@ -17,9 +20,11 @@
                 frame.blit(preview, card.x + card.w - preview_w - 10,
                            card.y + card.h - preview_h - 5);
             } else {
-                text(card.x + 12, card.y + 72, "MODEL ART PENDING", GlyphAtlas::Tone::Dark, 1);
+                text(card.x + 12, card.y + 86, "MODEL ART PENDING", GlyphAtlas::Tone::Dark, 1);
             }
         }
+        text(width - 185, 42, "WEEK " + std::to_string(game.current_week()), GlyphAtlas::Tone::Dark, 2);
+        button({width - 385, height - 62, 160, 36}, "NEXT WEEK");
         button({width - 205, height - 62, 160, 36}, "GARAGE");
         text(48, height - 42, message, GlyphAtlas::Tone::Dark, 2);
     }
@@ -34,12 +39,13 @@
             panel({26, 82, 470, 138});
             text(44, 101, car_display_name(car.base), GlyphAtlas::Tone::Gold, 2);
             text(44, 128,
-                 "HP " + std::to_string(car.horsepower()) +
-                 "  WEIGHT " + std::to_string(car.base.weight_lb) +
-                 " LB  CONDITION " + std::to_string(car.condition) + "%",
+                 (car.base.variant.empty() ? std::string("ENGINE") : car.base.variant) +
+                 "  HP " + std::to_string(car.horsepower()) +
+                 "  WT " + std::to_string(car.base.weight_lb) + " LB",
                  GlyphAtlas::Tone::Pale, 2);
             text(44, 154,
-                 "PAINT " + car.paint.name,
+                 "PAINT " + car.paint.name +
+                 "  CONDITION " + std::to_string(car.condition) + "%",
                  GlyphAtlas::Tone::Pale, 2);
             text(44, 180,
                  "SELL $" + std::to_string(car.resale_value()) +
@@ -76,23 +82,49 @@
         if (!game.active_car()) {
             text(58, 118, "BUY A CAR FIRST.", GlyphAtlas::Tone::Gold, 3);
         } else {
-            text(58, 106, car_display_name(game.active_car()->base), GlyphAtlas::Tone::Gold, 2);
+            const OwnedCar& car = *game.active_car();
+            text(58, 100, car_display_name(car.base), GlyphAtlas::Tone::Gold, 2);
+            text(58, 124,
+                 "CURRENT ENGINE: " + (car.base.variant.empty() ? std::string("UNKNOWN") : car.base.variant) +
+                 "  " + std::to_string(car.base.horsepower) + " HP",
+                 GlyphAtlas::Tone::Pale, 1);
+
+            const int left_x = 54;
+            const int right_x = width / 2 + 20;
+            const int left_w = width / 2 - 82;
+            const int right_w = width - right_x - 54;
+            const int row_h = 34;
+            const int first_row_y = 174;
+            text(left_x, 151, "PERFORMANCE PARTS", GlyphAtlas::Tone::Gold, 2);
+            text(right_x, 151, "COMPATIBLE ENGINES", GlyphAtlas::Tone::Gold, 2);
+
             const auto& parts = game.parts_catalog();
-            const int row_h = 36;
             for (std::size_t i = 0; i < parts.size(); ++i) {
-                const int y = 142 + static_cast<int>(i) * row_h;
-                if (y + row_h > height - 120) break;
-                const Rect row{54, y, width - 108, row_h - 4};
+                const int y = first_row_y + static_cast<int>(i) * row_h;
+                if (y + row_h > height - 132) break;
+                const Rect row{left_x, y, left_w, row_h - 3};
                 if (row.contains(mouse_x, mouse_y)) frame.blend(row.x, row.y, row.w, row.h, rgba(98, 32, 28, 120));
-                text(row.x + 10, row.y + 8,
-                     parts[i].name + "  $" + std::to_string(parts[i].price) +
-                     "  " + part_type_name(parts[i].type),
-                     GlyphAtlas::Tone::Pale, 2);
+                text(row.x + 8, row.y + 7,
+                     parts[i].name + "  $" + std::to_string(parts[i].price),
+                     GlyphAtlas::Tone::Pale, 1);
             }
+
+            const auto engines = game.compatible_engines();
+            for (std::size_t i = 0; i < engines.size(); ++i) {
+                const int y = first_row_y + static_cast<int>(i) * row_h;
+                if (y + row_h > height - 132) break;
+                const Rect row{right_x, y, right_w, row_h - 3};
+                if (row.contains(mouse_x, mouse_y)) frame.blend(row.x, row.y, row.w, row.h, rgba(98, 32, 28, 120));
+                text(row.x + 8, row.y + 7,
+                     engines[i].name + "  " + std::to_string(engines[i].horsepower) +
+                     " HP  $" + std::to_string(engines[i].price),
+                     GlyphAtlas::Tone::Pale, 1);
+            }
+
             if (!game.spare_parts().empty()) {
-                const int y = height - 150;
-                text(58, y, "SPARES - CLICK FIRST SPARE TO INSTALL: " + game.spare_parts().front().name,
-                     GlyphAtlas::Tone::Gold, 2);
+                const int y = height - 116;
+                text(58, y, "SPARE BIN - CLICK: " + game.spare_parts().front().name,
+                     GlyphAtlas::Tone::Gold, 1);
             }
         }
         button({30, height - 57, 150, 38}, "GARAGE");
