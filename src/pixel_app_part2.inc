@@ -1,9 +1,12 @@
             }
         }
+        // The old 5x7 bootstrap glyphs keep this split source self-contained,
+        // but the shipped UI uses a real antialiased raster atlas.
+        base_ = load_indexed_asset(scene_assets::ui_font);
         make_tone(pale_, rgba(239, 231, 207));
         make_tone(gold_, rgba(242, 211, 154));
         make_tone(red_, rgba(236, 106, 86));
-        make_tone(dark_, rgba(43, 39, 32));
+        make_tone(dark_, rgba(92, 92, 88));
     }
 
     enum class Tone { Pale, Gold, Red, Dark };
@@ -11,34 +14,53 @@
     void draw(InfiltratrSurface& destination, int x, int y,
               const std::string& value, Tone tone, int scale = 2) const {
         const InfiltratrSurface& atlas = surface_for(tone).get();
+        const int target_h = std::max(1, logical_height_ * scale);
+        const double factor = static_cast<double>(target_h) / cell_h_;
+        const int target_cell_w = std::max(1,
+            static_cast<int>(std::lround(cell_w_ * factor)));
         int cursor = x;
-        for (char raw : value) {
-            char c = raw;
-            if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+        for (char c : value) {
             std::size_t index = characters_.find(c);
             if (index == std::string::npos) index = characters_.find('?');
-            infiltratr_surface_blit_region_scaled_nearest(
+            ::backyard_surface_blit_region_scaled_smooth(
                 &destination, &atlas,
                 static_cast<int>(index) * cell_w_, 0, cell_w_, cell_h_,
-                cursor, y, cell_w_ * scale, cell_h_ * scale);
-            cursor += cell_w_ * scale;
+                cursor, y, target_cell_w, target_h);
+            cursor += advance(index, scale);
         }
     }
 
     int width(const std::string& value, int scale = 2) const {
-        return static_cast<int>(value.size()) * cell_w_ * scale;
+        int total = 0;
+        for (char c : value) {
+            std::size_t index = characters_.find(c);
+            if (index == std::string::npos) index = characters_.find('?');
+            total += advance(index, scale);
+        }
+        return total;
     }
 
 private:
     const std::string characters_ =
-        " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$-/:.%+?!(),";
-    static constexpr int cell_w_ = 6;
-    static constexpr int cell_h_ = 8;
+        " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$-/:.%+?!(),<>";
+    static constexpr int cell_w_ = 32;
+    static constexpr int cell_h_ = 32;
+    static constexpr int logical_height_ = 10;
+    inline static constexpr std::array<std::uint8_t, 77> advances_ = {
+        10,20,20,20,22,19,17,22,22,9,9,19,17,25,22,23,18,23,20,19,18,21,20,28,20,18,20,
+        18,19,16,19,18,11,19,19,9,9,17,9,28,19,18,19,19,13,16,12,19,17,24,17,17,16,
+        19,19,19,19,19,19,19,19,19,19,11,11,11,10,27,24,16,12,12,12,10,24,24
+    };
     SurfaceOwner base_;
     SurfaceOwner pale_;
     SurfaceOwner gold_;
     SurfaceOwner red_;
     SurfaceOwner dark_;
+
+    int advance(std::size_t index, int scale) const {
+        const double factor = static_cast<double>(logical_height_ * scale) / cell_h_;
+        return std::max(2, static_cast<int>(std::lround(advances_.at(index) * factor)));
+    }
 
     void make_tone(SurfaceOwner& destination, Color tint) {
         if (!infiltratr_surface_copy_luma_tinted(&destination.get(), &base_.get(), tint)) {
