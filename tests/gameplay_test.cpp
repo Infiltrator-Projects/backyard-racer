@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gameplay.h"
+#include "vehicle_data.h"
 
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace backyard_racer;
 
@@ -22,13 +24,48 @@ int main() {
     if (game.cash() != 4000) return fail("starting cash is wrong");
     if (game.reputation() != 0 || game.wins() != 0 || game.losses() != 0)
         return fail("new game record was not reset");
-    if (game.classifieds().empty()) return fail("classifieds are empty");
+    if (game.current_week() != 1) return fail("new game did not start in week one");
+    if (game.vehicle_catalog().size() < 50) return fail("vehicle variant catalog is too small");
+    if (game.engine_catalog().size() < 30) return fail("engine catalog is too small");
+    if (game.classifieds().size() != 8) return fail("weekly classifieds did not generate eight ads");
+
+    int starter_count = 0;
+    std::vector<std::string> week_one;
+    for (const auto& car : game.classifieds()) {
+        if (car.starter_ok) ++starter_count;
+        week_one.push_back(car.variant_id + ":" + std::to_string(car.price));
+    }
+    if (starter_count < 2) return fail("weekly market did not protect starter choices");
+
+    game.advance_week();
+    if (game.current_week() != 2) return fail("week did not advance");
+    if (game.classifieds().size() != 8) return fail("week two market did not regenerate eight ads");
+    std::vector<std::string> week_two;
+    for (const auto& car : game.classifieds())
+        week_two.push_back(car.variant_id + ":" + std::to_string(car.price));
+    if (week_one == week_two) return fail("weekly market did not change");
+
+    std::size_t buy_index = game.classifieds().size();
+    int cheapest = 1'000'000;
+    for (std::size_t i = 0; i < game.classifieds().size(); ++i) {
+        if (game.classifieds()[i].price <= game.cash() && game.classifieds()[i].price < cheapest) {
+            cheapest = game.classifieds()[i].price;
+            buy_index = i;
+        }
+    }
+    if (buy_index == game.classifieds().size()) return fail("weekly market has no affordable car");
+    const CarSpec bought_spec = game.classifieds()[buy_index];
+    const int cash_before_car = game.cash();
 
     std::string error;
-    if (!game.buy_car(0, &error)) return fail("could not buy first car: " + error);
+    if (!game.buy_car(buy_index, &error)) return fail("could not buy first car: " + error);
     if (game.active_car() == nullptr) return fail("bought car was not added to garage");
-    if (game.cash() != 2800) return fail("car purchase did not debit cash correctly");
+    if (game.cash() != cash_before_car - bought_spec.price)
+        return fail("car purchase did not debit cash correctly");
+    if (game.classifieds().size() != 7) return fail("sold classified remained in the paper");
     if (game.active_car()->condition != 100) return fail("newly bought car did not start at full condition");
+    if (game.active_car()->base.variant_id.empty() || game.active_car()->base.engine_id.empty())
+        return fail("bought car lost variant or engine identity");
 
     const int stock_hp = game.active_car()->horsepower();
     if (!game.buy_part(0, &error)) return fail("could not buy first carb: " + error);
@@ -44,18 +81,43 @@ int main() {
     if (game.active_car()->horsepower() != first_carb_hp) return fail("spare carb was not reinstalled");
     if (game.spare_parts().size() != 1) return fail("swapped-out carb was not returned to parts bin");
 
-    std::size_t engine_index = game.parts_catalog().size();
-    for (std::size_t i = 0; i < game.parts_catalog().size(); ++i) {
-        if (game.parts_catalog()[i].type == PartType::Engine) {
-            engine_index = i;
+    const std::string chassis = game.active_car()->base.chassis_family;
+    const EngineSpec* incompatible = nullptr;
+    for (const auto& engine : game.engine_catalog()) {
+        if (!engine_family_fits_chassis(chassis, engine.family)) {
+            incompatible = &engine;
             break;
         }
     }
-    if (engine_index == game.parts_catalog().size()) return fail("engine upgrades are missing from the catalog");
-    const int hp_before_engine = game.active_car()->horsepower();
-    if (!game.buy_part(engine_index, &error)) return fail("could not buy engine upgrade: " + error);
-    if (game.active_car()->horsepower() <= hp_before_engine)
-        return fail("engine upgrade did not increase horsepower");
+    if (!incompatible) return fail("could not find an incompatible engine for fitment test");
+    const int cash_before_reject = game.cash();
+    if (game.swap_engine(incompatible->id, nullptr, &error))
+        return fail("cross-family engine swap was incorrectly accepted");
+    if (game.cash() != cash_before_reject) return fail("rejected engine swap charged cash");
+
+    const auto compatible = game.compatible_engines();
+    const EngineSpec* replacement = nullptr;
+    for (const auto& engine : compatible) {
+        if (engine.price <= game.cash()) {
+            replacement = &engine;
+            break;
+        }
+    }
+    if (!replacement) return fail("no affordable compatible engine was offered");
+    const std::string replacement_id = replacement->id;
+    const int replacement_hp = replacement->horsepower;
+    const int cash_before_engine = game.cash();
+    int engine_price = 0;
+    if (!game.swap_engine(replacement_id, &engine_price, &error))
+        return fail("compatible engine swap failed: " + error);
+    if (!game.active_car() || game.active_car()->base.engine_id != replacement_id)
+        return fail("engine identity did not change after swap");
+    if (game.active_car()->base.horsepower != replacement_hp)
+        return fail("engine swap did not set the engine horsepower");
+    if (game.cash() != cash_before_engine - engine_price)
+        return fail("engine swap did not charge the engine price");
+    if (game.spare_parts().size() < 2)
+        return fail("removed engine was not returned to the parts bin");
 
     const auto save_path = std::filesystem::temp_directory_path() / "backyard-racer-gameplay-test.sav";
     std::error_code remove_error;
@@ -67,10 +129,15 @@ int main() {
     std::filesystem::remove(save_path, remove_error);
     if (!restored.started()) return fail("reloaded game was not marked started");
     if (restored.cash() != game.cash()) return fail("cash did not survive save/load");
+    if (restored.current_week() != game.current_week()) return fail("week did not survive save/load");
+    if (restored.classifieds().size() != game.classifieds().size())
+        return fail("weekly classifieds did not survive save/load");
     if (restored.garage().size() != game.garage().size()) return fail("garage did not survive save/load");
     if (restored.spare_parts().size() != game.spare_parts().size()) return fail("parts bin did not survive save/load");
-    if (!restored.active_car() || restored.active_car()->base.id != game.active_car()->base.id)
-        return fail("active car did not survive save/load");
+    if (!restored.active_car() || restored.active_car()->base.variant_id != game.active_car()->base.variant_id)
+        return fail("active car variant did not survive save/load");
+    if (restored.active_car()->base.engine_id != game.active_car()->base.engine_id)
+        return fail("engine swap did not survive save/load");
     if (restored.active_car()->horsepower() != game.active_car()->horsepower())
         return fail("installed performance parts did not survive save/load");
 
