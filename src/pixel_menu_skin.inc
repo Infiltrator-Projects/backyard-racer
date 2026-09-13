@@ -85,3 +85,5 @@
              game.started() ? "Continue where you left off." : "Buy a car. Build it. Race it.",
              GlyphAtlas::Tone::Pale, footer_scale);
     }
+
+#include "pixel_au_screens.inc"
