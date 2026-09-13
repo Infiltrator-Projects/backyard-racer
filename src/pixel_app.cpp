@@ -135,5 +135,10 @@ namespace backyard_racer::scene_assets {
 #undef menu_continue
 #undef menu_new
 
+// The original all-US-units draw dispatcher remains available for migration,
+// but the active draw() is supplied by pixel_au_screens.inc through the menu
+// skin include at the end of PixelApp::Impl.
+#define draw legacy_draw
 #include "pixel_app_part4.inc"
+#undef draw
 #include "pixel_app_part5.inc"
