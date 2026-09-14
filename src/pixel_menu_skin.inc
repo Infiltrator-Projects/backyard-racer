@@ -86,4 +86,19 @@
              GlyphAtlas::Tone::Pale, footer_scale);
     }
 
+// Keep the existing Australian metric garage/parts/race screens, but quarantine
+// the old full-resolution newspaper renderer and its hit-box helpers.  The
+// active classifieds implementation below is the 320x180 bitmap page.
+#define classified_ad_rect legacy_au_classified_ad_rect
+#define newspaper_next_week_rect legacy_au_newspaper_next_week_rect
+#define newspaper_garage_rect legacy_au_newspaper_garage_rect
+#define draw_classifieds_au legacy_au_draw_classifieds_au
+#define draw legacy_au_draw
 #include "pixel_au_screens.inc"
+#undef draw
+#undef draw_classifieds_au
+#undef newspaper_garage_rect
+#undef newspaper_next_week_rect
+#undef classified_ad_rect
+
+#include "pixel_classifieds_bitmap.inc"
