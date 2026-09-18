@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <infiltratr/posix.h>
 #include <infiltratr/timing.h>
 
 #include <array>
@@ -127,8 +128,11 @@ private:
     bool direct_32_ = false;
 
     static std::uint64_t now_ns() {
-        return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count());
+        std::uint64_t now = 0;
+        if (!infiltratr_monotonic_nanoseconds(&now)) {
+            throw std::runtime_error("Common monotonic clock failed");
+        }
+        return now;
     }
 
     static unsigned long pack_channel(std::uint8_t value, unsigned long mask) {

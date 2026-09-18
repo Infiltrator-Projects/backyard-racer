@@ -5,16 +5,16 @@ project(BackyardRacer VERSION 0.6.0 LANGUAGES C CXX)
 
 include(FetchContent)
 
-# Common owns generic timing and software-pixel surface operations. Pin the
-# exact reviewed commit so both the game core and host adapter build against
-# the same immutable implementation.
+# Common owns generic timing, durable POSIX publication and software-pixel
+# surface operations. Pin the exact reviewed release so gameplay, renderer and
+# host adapter all consume the same immutable implementation.
 set(INFILTRATR_COMMON_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(INFILTRATR_COMMON_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(INFILTRATR_COMMON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     InfiltratrCommon
     GIT_REPOSITORY https://github.com/Infiltrator-Projects/Infiltrator-Libraries.git
-    GIT_TAG e97276c50c894f69a2137efd81e06b3a90945c25
+    GIT_TAG 9b6e92ef135f7e4bc0af809975a619aa20a2eaa3
 )
 FetchContent_MakeAvailable(InfiltratrCommon)
 
@@ -28,6 +28,7 @@ add_library(backyard-gameplay STATIC
 target_include_directories(backyard-gameplay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(backyard-gameplay PUBLIC cxx_std_20)
 set_target_properties(backyard-gameplay PROPERTIES CXX_EXTENSIONS OFF)
+target_link_libraries(backyard-gameplay PUBLIC InfiltratrCommon::Common)
 
 # Platform-neutral presentation core. It owns every player-visible pixel and
 # deliberately has no X11 dependency. X11 is confined to the host adapter.
@@ -38,7 +39,6 @@ target_compile_features(backyard-pixel-core PUBLIC cxx_std_20)
 set_target_properties(backyard-pixel-core PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-pixel-core PUBLIC
     backyard-gameplay
-    InfiltratrCommon::Portable
     ZLIB::ZLIB)
 
 add_executable(backyard-racer
@@ -48,14 +48,13 @@ target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-racer PRIVATE
     backyard-pixel-core
-    InfiltratrCommon::Portable
     X11::X11)
 
 add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
 target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
 
 add_executable(backyard-race-session-test tests/race_session_test.cpp)
-target_link_libraries(backyard-race-session-test PRIVATE backyard-gameplay InfiltratrCommon::Portable)
+target_link_libraries(backyard-race-session-test PRIVATE backyard-gameplay)
 
 add_executable(backyard-pixel-core-test tests/pixel_core_test.cpp)
 target_link_libraries(backyard-pixel-core-test PRIVATE backyard-pixel-core)

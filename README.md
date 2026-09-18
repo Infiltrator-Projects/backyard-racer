@@ -6,11 +6,11 @@ A native street-rod garage and racing game built around the hands-on car buildin
 
 Backyard Racer consumes **Infiltratr Common** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
 
-The build is pinned to Infiltratr Common **v1.16.0**, exact release commit:
+The build is pinned to Infiltratr Common **v1.19.0**, exact release commit:
 
-`a9db06b11f493c4e6f42bf6c13cc5cc5c73e1fc4`
+`9b6e92ef135f7e4bc0af809975a619aa20a2eaa3`
 
-The current game uses Common for canonical project/application identity, string handling used by the command-line interface, and the fixed-step scheduler used by the live quarter-mile race. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
+The current game uses Common for canonical project/application identity, the exact fixed-step scheduler used by the live quarter-mile race, monotonic host timing, durable atomic save publication, software surfaces, alpha composition, luminance tinting and nearest/bilinear image scaling. Pixel-art screens such as the low-resolution newspaper deliberately retain nearest-neighbour scaling; photographic/authored UI and vehicle assets use Common's alpha-aware bilinear path. Product-neutral functionality already owned by Common should continue to be consumed from Common rather than recreated here.
 
 ## Presentation architecture
 

@@ -8,6 +8,8 @@
 #include "gameplay.h"
 #include "vehicle_data.h"
 
+#include <infiltratr/posix.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -744,13 +746,12 @@ bool GameState::save_to(const std::string& path, std::string* error) const {
         }
     }
 
-    const std::filesystem::path temp_path = final_path.string() + ".tmp";
-    std::ofstream out(temp_path, std::ios::trunc);
-    if (!out) {
-        set_error(error, "COULD NOT OPEN SAVE FILE");
-        return false;
-    }
-
+    /*
+     * Build one complete save image in memory, then hand publication to
+     * Common's durable atomic-file contract. A successful return means the
+     * replacement and its parent-directory entry have both been synced.
+     */
+    std::ostringstream out;
     out << "BACKYARD_RACER_SAVE " << kSaveVersion << '\n';
     out << "STATE " << cash_ << ' ' << reputation_ << ' ' << wins_ << ' '
         << losses_ << ' ' << active_car_ << ' ' << current_week_ << ' '
@@ -775,25 +776,19 @@ bool GameState::save_to(const std::string& path, std::string* error) const {
     out << "SPARES " << spare_parts_.size() << '\n';
     for (const auto& part : spare_parts_) write_part(out, part);
     out << "END\n";
-    out.flush();
+
     if (!out) {
-        set_error(error, "COULD NOT WRITE SAVE FILE");
-        out.close();
-        std::filesystem::remove(temp_path, ec);
+        set_error(error, "COULD NOT SERIALIZE SAVE FILE");
         return false;
     }
-    out.close();
-
-    std::filesystem::rename(temp_path, final_path, ec);
-    if (ec) {
-        ec.clear();
-        std::filesystem::remove(final_path, ec);
-        ec.clear();
-        std::filesystem::rename(temp_path, final_path, ec);
-    }
-    if (ec) {
-        set_error(error, "COULD NOT PUBLISH SAVE FILE: " + ec.message());
-        std::filesystem::remove(temp_path, ec);
+    const std::string payload = out.str();
+    const std::string native_path = final_path.string();
+    const int write_error = infiltratr_atomic_file_write_bytes(
+        native_path.c_str(), INFILTRATR_ATOMIC_FILE_PRIVATE,
+        payload.data(), payload.size());
+    if (write_error != 0) {
+        set_error(error, "COULD NOT PUBLISH SAVE FILE: " +
+                         std::error_code(write_error, std::generic_category()).message());
         return false;
     }
     return true;

@@ -75,7 +75,7 @@ public:
         infiltratr_surface_blit(&surface_, &source.surface_, x, y);
     }
     void blit_scaled(const SurfaceOwner& source, int x, int y, int width, int height) {
-        infiltratr_surface_blit_scaled_nearest(&surface_, &source.surface_, x, y, width, height);
+        infiltratr_surface_blit_scaled_bilinear(&surface_, &source.surface_, x, y, width, height);
     }
 
 private:
@@ -177,7 +177,7 @@ SurfaceOwner load_indexed_asset(const scene_assets::IndexedAsset& asset) {
 SurfaceOwner scaled_copy(const SurfaceOwner& source, int width, int height) {
     SurfaceOwner result(width, height);
     result.clear(rgba(0, 0, 0, 0));
-    infiltratr_surface_blit_scaled_nearest(&result.get(), &source.get(), 0, 0, width, height);
+    infiltratr_surface_blit_scaled_bilinear(&result.get(), &source.get(), 0, 0, width, height);
     return result;
 }
 

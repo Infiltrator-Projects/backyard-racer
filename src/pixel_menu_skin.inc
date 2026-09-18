@@ -35,7 +35,7 @@
         const bool hover = enabled && r.contains(mouse_x, mouse_y);
         const int source_y = !enabled ? 348 : (hover ? 284 : 220);
         const SurfaceOwner& chrome = authored_menu_chrome();
-        ::backyard_surface_blit_region_scaled_smooth(
+        ::infiltratr_surface_blit_region_scaled_bilinear(
             &frame.get(), &chrome.get(), 0, source_y, 340, 58,
             r.x, r.y, r.w, r.h);
 
@@ -68,7 +68,7 @@
 
         const double s = menu_ui_scale();
         const SurfaceOwner& chrome = authored_menu_chrome();
-        ::backyard_surface_blit_region_scaled_smooth(
+        ::infiltratr_surface_blit_region_scaled_bilinear(
             &frame.get(), &chrome.get(), 0, 0, 440, 210,
             static_cast<int>(38 * s), static_cast<int>(42 * s),
             static_cast<int>(440 * s), static_cast<int>(210 * s));

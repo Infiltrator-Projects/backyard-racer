@@ -23,7 +23,7 @@
         for (char c : value) {
             std::size_t index = characters_.find(c);
             if (index == std::string::npos) index = characters_.find('?');
-            ::backyard_surface_blit_region_scaled_smooth(
+            ::infiltratr_surface_blit_region_scaled_bilinear(
                 &destination, &atlas,
                 static_cast<int>(index) * cell_w_, 0, cell_w_, cell_h_,
                 cursor, y, target_cell_w, target_h);
