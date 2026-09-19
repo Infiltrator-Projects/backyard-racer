@@ -2,7 +2,7 @@
 
 ## Active model-specific vehicle masters
 
-The active garage and newspaper renderer now builds first-party, model-specific **HD layered side-view masters procedurally at runtime**. The former 240×80 sprite sheet path has been deleted and is no longer compiled or shipped.
+The active garage and newspaper renderer uses the approved first-party, model-specific **authored side-view car artwork**. The former procedural body generator and the old 240×80 sprite path are not used by the active renderer.
 
 The complete current body roster is:
 
@@ -19,11 +19,11 @@ The complete current body roster is:
 - 1970 Chevrolet Chevelle
 - 1970 Plymouth Barracuda
 
-Each body ID has its own neutral-grey HD master generated at **960×300** from a 2× supersampled working surface, then bilinearly reduced. The garage never displays a car wider than 860 pixels, so active vehicle art is always rendered from equal-or-higher source resolution rather than enlarged from a tiny sprite. Drivetrain variants sharing the same body ID reuse that body geometry, while the runtime vehicle state supplies the specific engine/variant data.
+Each body ID maps to its own authored car image in the packed vehicle-art sheet. The runtime expands that artwork into cached presentation surfaces and separates paintable bodywork, fixed details, wheels and bumpers for the game mechanics. Drivetrain variants sharing the same body ID reuse the same body artwork, while the runtime vehicle state supplies the specific engine/variant data.
 
 All active masters use the garage's canonical side orientation: **front on the left, rear on the right**. Cars enter from the right edge and travel right-to-left in forward motion; leaving cars reverse left-to-right without flipping the artwork.
 
-The masters are authored for the game's side-on garage presentation. The renderer constructs paint, fixed-detail, front-wheel, rear-wheel, front-bumper and rear-bumper surfaces independently instead of trying to infer those pieces from one low-resolution bitmap. Body paint is tinted at runtime; glass, lamps, grille, trim, tyres and chrome remain fixed. Front and rear bumpers can therefore be removed and refitted independently without regenerating the vehicle image.
+The authored cars are side-on presentation artwork. The renderer segments each approved image into paint, fixed-detail, front-wheel, rear-wheel, front-bumper and rear-bumper surfaces, preserving the actual model image instead of replacing it with a generated geometric approximation. Body paint is tinted at runtime; glass, lamps, grille, trim, tyres and chrome remain fixed. Front and rear bumpers can therefore be removed and refitted independently without regenerating the vehicle image.
 
 ## Active garage and UI artwork
 
