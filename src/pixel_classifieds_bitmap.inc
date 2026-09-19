@@ -118,6 +118,14 @@
         return paper_to_screen_rect({564, 338, 72, 18});
     }
 
+    Rect newspaper_article_back_rect() const {
+        return paper_to_screen_rect({476, 338, 78, 18});
+    }
+
+    Rect newspaper_article_buy_rect() const {
+        return paper_to_screen_rect({558, 338, 78, 18});
+    }
+
     bool paper_hover(Rect p) const {
         return paper_to_screen_rect(p).contains(mouse_x, mouse_y);
     }
@@ -271,10 +279,124 @@
                                                0, 0, width, height);
     }
 
+    void compose_classified_article_paper() {
+        if (!selected_classified_index ||
+            *selected_classified_index >= game.classifieds().size()) {
+            selected_classified_index.reset();
+            compose_classifieds_paper();
+            return;
+        }
+
+        if (classifieds_paper_.empty() ||
+            classifieds_paper_.width() != classifieds_paper_w ||
+            classifieds_paper_.height() != classifieds_paper_h) {
+            classifieds_paper_.resize(classifieds_paper_w, classifieds_paper_h);
+        }
+
+        classifieds_paper_.clear(paper_colour());
+        paper_speckle();
+
+        const std::size_t index = *selected_classified_index;
+        const CarSpec& car = game.classifieds()[index];
+
+        paper_text(8, 6, "THE BACKYARD GAZETTE", paper_ink(), 2, true);
+        const std::string edition =
+            "WEEK " + std::to_string(game.current_week()) + "  MOTORING CLASSIFIED";
+        paper_text(classifieds_paper_w - paper_text_width(edition) - 10,
+                   10, edition, paper_ink(), 1, false);
+        paper_rule_h(6, 27, classifieds_paper_w - 12, paper_ink());
+        paper_dotted_rule_h(6, 30, classifieds_paper_w - 12, paper_rule());
+
+        paper_text(22, 40, car_display_name(car), paper_ink(), 2, true, 596);
+        if (!car.variant.empty()) {
+            paper_text(24, 60, car.variant, paper_rule(), 1, true, 592);
+        }
+
+        // Newspaper photo: the same model-specific master used by the garage.
+        paper_fill(22, 82, 330, 132, paper_light());
+        paper_rule_h(22, 82, 330, paper_rule());
+        paper_rule_h(22, 213, 330, paper_rule());
+        paper_rule_v(22, 82, 132, paper_rule());
+        paper_rule_v(351, 82, 132, paper_rule());
+        if (CarArt* art = art_for(car.id)) {
+            const int photo_w = 292;
+            const int photo_h = std::max(1, art->source.height() * photo_w / art->source.width());
+            classifieds_paper_.blit_scaled(
+                art->source,
+                41, 102 + std::max(0, (88 - photo_h) / 2),
+                photo_w, photo_h);
+        } else {
+            paper_text(84, 139, "MODEL PHOTO UNAVAILABLE", paper_rule(), 1, true, 220);
+        }
+        paper_text(30, 198, "PHOTO SUPPLIED BY SELLER", paper_rule(), 1, false, 310);
+
+        paper_text(376, 86, "ASKING PRICE", paper_ink(), 1, true);
+        paper_text(376, 101, paper_money(car.price), paper_ink(), 2, true);
+        paper_dotted_rule_h(374, 124, 242);
+        paper_text(376, 132, "ENGINE", paper_ink(), 1, true);
+        paper_text(376, 145,
+                   car.variant.empty() ? std::string("STANDARD ENGINE") : car.variant,
+                   paper_ink(), 1, false, 238);
+        paper_text(376, 164,
+                   std::to_string(display_kw(car.horsepower)) + " KW",
+                   paper_ink(), 1, false, 112);
+        paper_text(490, 164,
+                   std::to_string(display_kg(car.weight_lb)) + " KG",
+                   paper_ink(), 1, false, 118);
+        paper_dotted_rule_h(374, 181, 242);
+        const std::string ref =
+            "REF BG" + std::to_string(game.current_week()) + "-" + std::to_string(index + 1);
+        paper_text(376, 190, ref, paper_rule(), 1, true, 238);
+
+        paper_rule_h(22, 228, 594, paper_ink());
+        paper_text(22, 237, "SELLER'S NOTES", paper_ink(), 1, true);
+        static constexpr const char* article_notes[] = {
+            "RUNS WELL AND PRESENTS HONESTLY FOR ITS AGE. INSPECTION WELCOME.",
+            "GOOD DRIVER. STRAIGHT OLD CAR. SELLING TO MAKE ROOM IN THE SHED.",
+            "TIDY FOR AGE WITH ORIGINAL CHARACTER. NO SWAPS, CASH SALE PREFERRED.",
+            "WEEKEND CAR THAT STARTS EASILY. SOLD AS INSPECTED.",
+            "OLDER CAR WITH PRESENTABLE TRIM. VIEWING BY ARRANGEMENT.",
+            "DRIVES WELL WITH GOOD TYRES. FIRST SERIOUS BUYER TAKES IT.",
+            "OLDER RESTORATION, STILL PRESENTABLE. COME AND LOOK BEFORE MAKING AN OFFER.",
+            "LOCAL GARAGED CAR. INSPECTION AFTER WORK OR SATURDAY MORNING."
+        };
+        paper_text(22, 253, article_notes[index % std::size(article_notes)],
+                   paper_ink(), 1, false, 594);
+        paper_text(22, 270,
+                   "PRIVATE SALE - INSPECT BEFORE PURCHASE - PRICE SHOWN IN AUD",
+                   paper_rule(), 1, false, 594);
+
+        paper_fill(0, 336, classifieds_paper_w, 24, paper_ink());
+        paper_text(8, 343, "BANKROLL " + paper_money(game.cash()),
+                   paper_light(), 1, true, 150);
+        if (!message.empty()) {
+            paper_text(166, 343, message, paper_light(), 1, false, 300);
+        }
+
+        const Rect back_paper{476, 338, 78, 18};
+        const Rect buy_paper{558, 338, 78, 18};
+        const Color back_tone = paper_hover(back_paper) ? rgba(223, 111, 83) : paper_light();
+        const bool can_buy = game.cash() >= car.price;
+        const Color buy_tone = paper_hover(buy_paper) && can_buy
+            ? rgba(223, 111, 83)
+            : (can_buy ? paper_light() : rgba(130, 126, 116));
+        paper_text(480, 343, "BACK", back_tone, 1, paper_hover(back_paper), 70);
+        paper_text(562, 343, "BUY CAR", buy_tone, 1,
+                   paper_hover(buy_paper) && can_buy, 70);
+    }
+
+    void draw_classified_article_au() {
+        compose_classified_article_paper();
+        frame.clear(rgba(24, 23, 20));
+        infiltratr_surface_blit_scaled_nearest(&frame.get(), &classifieds_paper_.get(),
+                                               0, 0, width, height);
+    }
+
     void draw() {
         switch (screen) {
             case Screen::Menu: draw_menu(); break;
             case Screen::Classifieds: draw_classifieds_au(); break;
+            case Screen::ClassifiedArticle: draw_classified_article_au(); break;
             case Screen::Garage: draw_garage_au(); break;
             case Screen::Parts: draw_parts_au(); break;
             case Screen::Diner: draw_diner(); break;
