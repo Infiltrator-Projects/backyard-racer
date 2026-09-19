@@ -26,15 +26,17 @@ It must not contain a vehicle, vehicle shadow, vehicle-specific paint colour or 
 
 The exact same garage background remains visible when a car is purchased, when a car arrives, while it is parked, while it leaves, while another car arrives and while the garage is temporarily empty between cars.
 
-## Vehicle asset principle: HD neutral-grey layered masters
+## Vehicle asset principle: authored layered car artwork
 
-Every vehicle model is authored from a neutral-grey HD master for the paintable bodywork. The production renderer must not upscale tiny sprite art: the current masters are generated at 960×300 from a 2× supersampled working surface, while garage display width is capped below the master width.
+Every vehicle model is represented by approved authored side-view artwork for that exact model. The renderer must display that artwork, not synthesize a substitute body from rectangles, polygons or a generic silhouette.
+
+The paintable portions of the approved image are converted to a luminance body layer at load time so runtime repainting can preserve the artwork's original highlights and panel shading.
 
 The neutral grey is not the final in-game colour. It is a luminance/shading source. The renderer tints the grey body at runtime so the same source asset can represent any paint colour while retaining highlights, reflections, panel shading and body contours.
 
 Only paintable body surfaces are recoloured. Tyres, glass, chrome, lights, badges, trim, grilles, exhausts and other non-painted details remain independent of the chosen paint colour.
 
-A model therefore uses genuinely separate logical layers; the active renderer constructs them independently rather than splitting a tiny composite sprite after the fact:
+A model uses separate logical runtime layers derived from the approved authored image:
 
 - shadow layer;
 - paintable neutral-grey body layer;
@@ -203,13 +205,13 @@ with signed distance preserving forward/reverse rotation direction.
 
 Input that would mutate garage occupancy should be locked or deliberately queued while a drive-in/drive-out transition is in progress so the scene cannot end in an impossible mixed state.
 
-## Active HD vehicle implementation
+## Active authored vehicle implementation
 
-Vehicle geometry is defined by model-specific HD profiles in the native renderer. Each profile supplies its real-car proportion cues—wheelbase, roofline, greenhouse, bonnet/deck relationship and model-specific details—and produces independent body, detail, wheel and bumper surfaces.
+The active registry loads `vehicle_photo_sheet_hd`, crops the approved image for each of the twelve body IDs, and derives the runtime body/detail/wheel/bumper surfaces from that actual artwork.
 
-The final master is 960×300, rendered from a 1920×600 supersampled working surface and reduced with the shared bilinear compositor. Because the in-garage car width is capped at 860 pixels, the game never enlarges a low-resolution vehicle source to fill the garage.
+No procedural car-body generator participates in the active path. A named historical model must therefore remain visually identical to its approved source artwork apart from deliberate runtime operations such as paint tint, wheel rotation and bumper removal.
 
-This replaces the former 240×80 indexed-sprite path. Reintroducing a low-resolution vehicle master or silently falling back to a generic body is a presentation regression.
+The registry preserves the canonical orientation: front on the left, rear on the right.
 
 ## Renderer requirements
 
@@ -245,6 +247,7 @@ The following are not acceptable as the final architecture:
 - instantly replacing one physically parked car with another without the outgoing reverse / incoming forward sequence;
 - showing two parked cars in the garage during a swap;
 - generating a fresh raster source asset every time the player selects a paint colour;
+- replacing approved car artwork with a procedural or generic geometric approximation;
 - animating wheels independently of actual distance travelled.
 
 ## Current design decision
