@@ -244,10 +244,12 @@
                  GlyphAtlas::Tone::Pale, 2);
             button({38, 204, 138, 34}, "REPAIR", !moving && car.repair_cost() > 0);
             button({190, 204, 138, 34}, "SELL CAR", !moving);
+            const std::string bumper_cost =
+                "$" + std::to_string(GameState::bumper_change_cost());
             const std::string front_bumper_action =
-                car.front_bumper_installed ? "FRONT OFF $50" : "FRONT ON $50";
+                std::string(car.front_bumper_installed ? "FRONT OFF " : "FRONT ON ") + bumper_cost;
             const std::string rear_bumper_action =
-                car.rear_bumper_installed ? "REAR OFF $50" : "REAR ON $50";
+                std::string(car.rear_bumper_installed ? "REAR OFF " : "REAR ON ") + bumper_cost;
             button({342, 204, 190, 34}, front_bumper_action,
                    !moving && game.cash() >= GameState::bumper_change_cost());
             button({546, 204, 190, 34}, rear_bumper_action,
