@@ -154,13 +154,7 @@ double hue_distance(double a, double b) {
 }
 
 Color surface_pixel(const SurfaceOwner& surface, int x, int y) {
-    if (surface.empty() || x < 0 || y < 0 ||
-        x >= surface.width() || y >= surface.height()) {
-        return rgba(0, 0, 0, 0);
-    }
-    return surface.get().pixels[
-        static_cast<std::size_t>(y) * surface.get().width +
-        static_cast<std::size_t>(x)];
+    return infiltratr_surface_get_pixel(&surface.get(), x, y);
 }
 
 SurfaceOwner crop_surface(const SurfaceOwner& source, int x0, int y0,
