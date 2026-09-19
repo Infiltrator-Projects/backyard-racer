@@ -3,34 +3,65 @@
         for (std::size_t i = 0; i < cars.size(); ++i) {
             const Rect card = classified_ad_rect(i);
             if (!card.contains(x, y)) continue;
-            const auto old_car = displayed;
-            const auto old_index = displayed_index;
-            std::string error;
-            if (game.buy_car(i, &error)) {
-                const auto new_car = copy_active(game);
-                const auto new_index = new_car ? std::optional<std::size_t>(game.active_car_index()) : std::nullopt;
-                message = "PURCHASED " + car_display_name(game.active_car()->base) +
-                          (game.active_car()->base.variant.empty() ? std::string() :
-                              " - " + game.active_car()->base.variant) +
-                          " - " + game.active_car()->paint.name;
-                screen = Screen::Garage;
-                begin_change(old_car, old_index, new_car, new_index);
-            } else {
-                message = error;
-            }
+            selected_classified_index = i;
+            message.clear();
+            screen = Screen::ClassifiedArticle;
             dirty = true;
             return;
         }
         if (newspaper_next_week_rect().contains(x, y)) {
+            selected_classified_index.reset();
             game.advance_week();
             message = "WEEK " + std::to_string(game.current_week()) + " - NEW CLASSIFIEDS";
             dirty = true;
             return;
         }
         if (newspaper_garage_rect().contains(x, y)) {
+            selected_classified_index.reset();
             screen = Screen::Garage;
             sync_garage_to_active();
         }
+    }
+
+    void click_classified_article(int x, int y) {
+        if (newspaper_article_back_rect().contains(x, y)) {
+            selected_classified_index.reset();
+            message.clear();
+            screen = Screen::Classifieds;
+            dirty = true;
+            return;
+        }
+
+        if (!newspaper_article_buy_rect().contains(x, y)) return;
+        if (!selected_classified_index ||
+            *selected_classified_index >= game.classifieds().size()) {
+            selected_classified_index.reset();
+            message = "THAT AD IS NO LONGER AVAILABLE";
+            screen = Screen::Classifieds;
+            dirty = true;
+            return;
+        }
+
+        const std::size_t listing_index = *selected_classified_index;
+        const auto old_car = displayed;
+        const auto old_index = displayed_index;
+        std::string error;
+        if (game.buy_car(listing_index, &error)) {
+            const auto new_car = copy_active(game);
+            const auto new_index = new_car
+                ? std::optional<std::size_t>(game.active_car_index())
+                : std::nullopt;
+            message = "PURCHASED " + car_display_name(game.active_car()->base) +
+                      (game.active_car()->base.variant.empty() ? std::string() :
+                          " - " + game.active_car()->base.variant) +
+                      " - " + game.active_car()->paint.name;
+            selected_classified_index.reset();
+            screen = Screen::Garage;
+            begin_change(old_car, old_index, new_car, new_index);
+        } else {
+            message = error;
+        }
+        dirty = true;
     }
 
     void click_garage(int x, int y) {
@@ -55,6 +86,34 @@
                 const auto next_index = next ? std::optional<std::size_t>(game.active_car_index()) : std::nullopt;
                 begin_change(old_car, old_index, next, next_index);
             } else message = error;
+            dirty = true;
+            return;
+        }
+        if (Rect{342, 204, 190, 34}.contains(x, y) && game.active_car()) {
+            const bool install = !game.active_car()->front_bumper_installed;
+            int price = 0;
+            std::string error;
+            if (game.set_bumper(BumperPosition::Front, install, &price, &error)) {
+                message = std::string("FRONT BUMPER ") + (install ? "FITTED" : "REMOVED") +
+                          " FOR $" + std::to_string(price);
+                displayed = copy_active(game);
+            } else {
+                message = error;
+            }
+            dirty = true;
+            return;
+        }
+        if (Rect{546, 204, 190, 34}.contains(x, y) && game.active_car()) {
+            const bool install = !game.active_car()->rear_bumper_installed;
+            int price = 0;
+            std::string error;
+            if (game.set_bumper(BumperPosition::Rear, install, &price, &error)) {
+                message = std::string("REAR BUMPER ") + (install ? "FITTED" : "REMOVED") +
+                          " FOR $" + std::to_string(price);
+                displayed = copy_active(game);
+            } else {
+                message = error;
+            }
             dirty = true;
             return;
         }
@@ -151,6 +210,7 @@
             case Screen::Menu:
                 if (menu_new().contains(x, y)) {
                     game.new_game();
+                    selected_classified_index.reset();
                     displayed.reset();
                     displayed_index.reset();
                     motion = Motion::Idle;
@@ -163,6 +223,7 @@
                 else if (menu_quit().contains(x, y)) running = false;
                 break;
             case Screen::Classifieds: click_classifieds(x, y); break;
+            case Screen::ClassifiedArticle: click_classified_article(x, y); break;
             case Screen::Garage: click_garage(x, y); break;
             case Screen::Parts: click_parts(x, y); break;
             case Screen::Diner: click_diner(x, y); break;
@@ -186,7 +247,11 @@
     void on_key_press(PixelKey key) {
         if (key == PixelKey::Escape) {
             if (screen == Screen::Menu) running = false;
-            else if (screen == Screen::Race) {
+            else if (screen == Screen::ClassifiedArticle) {
+                selected_classified_index.reset();
+                message.clear();
+                screen = Screen::Classifieds;
+            } else if (screen == Screen::Race) {
                 race.set_throttle(false);
                 screen = Screen::Diner;
             } else {
