@@ -41,7 +41,7 @@ The current loop is:
 Implemented gameplay includes:
 
 - rotating used-car classifieds presented as a newspaper, with a full article opened before any purchase action;
-- model-specific HD side-view art for every current body family, generated from supersampled layered masters rather than upscaled sprites;
+- model-specific side-view artwork for every current body family, using the approved authored car images rather than procedural silhouettes;
 - multiple owned cars and active-car selection;
 - independently removable/refittable front and rear bumpers, with paid garage labour and persistent fitment state;
 - cash economy;
@@ -65,7 +65,7 @@ The garage mechanics are intentionally modular so the quick auto-install flow ca
 
 ## Art sources
 
-The active garage/newspaper vehicle presentation uses a complete first-party model-specific HD neutral-grey master roster. Cars are built from supersampled paint, detail, wheel and removable-bumper layers; the obsolete 240×80 vehicle sprite path has been removed. Older Kenney CC0 material remains only as legacy/prototype provenance. See [`assets/README.md`](assets/README.md) for the active roster and tracked third-party history.
+The active garage/newspaper vehicle presentation uses the approved first-party model-specific car artwork. The renderer derives paint, fixed-detail, wheel and removable-bumper layers from those authored images; procedural car-body generation and the obsolete 240×80 sprite path are not part of the active presentation. Older Kenney CC0 material remains only as legacy/prototype provenance. See [`assets/README.md`](assets/README.md) for the active roster and tracked third-party history.
 
 ## Upstream acceleration
 
