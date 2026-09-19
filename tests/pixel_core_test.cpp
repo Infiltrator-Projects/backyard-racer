@@ -34,7 +34,7 @@ int main() {
     if (!surface.pixels || surface.width != 800 || surface.height != 600) return 1;
 
     // New Game -> newspaper.
-    app.on_button_press(backyard_racer::PixelMouseButton::Left, 100, 270);
+    app.on_button_press(backyard_racer::PixelMouseButton::Left, 100, 195);
     app.draw();
     const std::uint64_t listings_hash = frame_hash(app.surface());
 
