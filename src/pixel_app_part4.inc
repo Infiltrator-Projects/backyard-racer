@@ -190,8 +190,8 @@
         text_center({width / 2 - 330, 145, 660, 54}, result.summary,
                     result.won ? GlyphAtlas::Tone::Gold : GlyphAtlas::Tone::Red, 3);
         text(width / 2 - 270, 230,
-             "YOUR ET " + std::to_string(result.player_et).substr(0, 5) +
-             "   THEIR ET " + std::to_string(result.opponent_et).substr(0, 5),
+             "YOUR ET " + fixed_ascii(result.player_et, 2) +
+             "   THEIR ET " + fixed_ascii(result.opponent_et, 2),
              GlyphAtlas::Tone::Pale, 2);
         text(width / 2 - 270, 274,
              "CASH " + std::to_string(result.cash_delta) +

@@ -5,6 +5,7 @@
 #include "race_session.h"
 #include "scene_embedded_assets.h"
 
+#include <infiltratr/format.h>
 #include <zlib.h>
 
 #include <algorithm>
@@ -27,6 +28,14 @@ using Color = InfiltratrColor;
 
 constexpr Color rgba(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a = 255) {
     return Color{r, g, b, a};
+}
+
+std::string fixed_ascii(double value, unsigned decimal_places) {
+    char buffer[64]{};
+    if (!infiltratr_format_fixed_ascii(value, decimal_places, buffer, sizeof(buffer))) {
+        return "N/A";
+    }
+    return buffer;
 }
 
 class SurfaceOwner {
