@@ -82,6 +82,12 @@ private:
 };
 
 
+inline constexpr int kVehicleMasterWidth = 960;
+inline constexpr int kVehicleMasterHeight = 300;
+inline constexpr int kVehicleMaxDisplayWidth = 860;
+static_assert(kVehicleMasterWidth >= kVehicleMaxDisplayWidth,
+              "Vehicle masters must never be upscaled in the garage");
+
 struct CarProfile {
     std::string_view id;
     double front_x;
@@ -359,8 +365,8 @@ void draw_model_details(const CarProfile& p, SurfaceOwner& detail, int w, int h)
 }
 
 CarArt make_hd_car_art(const CarProfile& p) {
-    constexpr int final_w = 960;
-    constexpr int final_h = 300;
+    constexpr int final_w = kVehicleMasterWidth;
+    constexpr int final_h = kVehicleMasterHeight;
     constexpr int ss = 2;
     const int w = final_w * ss;
     const int h = final_h * ss;
