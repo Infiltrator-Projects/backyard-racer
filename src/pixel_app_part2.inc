@@ -425,11 +425,13 @@ struct PixelApp::Impl {
 
     void load_assets() {
         garage_source = load_indexed_asset(scene_assets::garage_hd);
+        SurfaceOwner vehicle_sheet =
+            load_indexed_asset(scene_assets::vehicle_photo_sheet_hd);
 
         car_art.clear();
-        car_art.reserve(kHdCarProfiles.size());
-        for (const CarProfile& profile : kHdCarProfiles) {
-            car_art.push_back(make_hd_car_art(profile));
+        car_art.reserve(kPhotoCarProfiles.size());
+        for (const PhotoCarProfile& profile : kPhotoCarProfiles) {
+            car_art.push_back(make_photo_car_art(vehicle_sheet, profile));
         }
     }
 
