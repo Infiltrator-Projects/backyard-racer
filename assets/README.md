@@ -21,6 +21,8 @@ The complete current body roster is:
 
 Each body ID has its own neutral-grey master. Drivetrain variants sharing the same body ID reuse that body artwork, while the runtime vehicle state supplies the specific engine/variant data.
 
+All active masters use the garage's canonical side orientation: **front on the left, rear on the right**. Cars enter from the right edge and travel right-to-left in forward motion; leaving cars reverse left-to-right without flipping the artwork.
+
 The masters are authored for the game's side-on garage presentation. The active renderer separates each master into logical paint, fixed-detail, wheel, front-bumper and rear-bumper layers. Body paint is tinted at runtime; glass, lamps, grille, trim, tyres and chrome remain fixed. Front and rear bumpers can therefore be removed and refitted independently without regenerating the vehicle image.
 
 ## Active garage and UI artwork
