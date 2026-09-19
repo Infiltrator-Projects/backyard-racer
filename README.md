@@ -36,12 +36,14 @@ Version `0.6.0-dev` has a basic garage-to-race loop and persistent progression.
 
 The current loop is:
 
-`New Game -> Classifieds -> Buy Car -> Garage -> Buy/Install Parts -> Diner -> Cash or Pink-Slip Race -> Garage`
+`New Game -> Classifieds -> Read Ad -> Buy Car -> Garage -> Build/Tune -> Diner -> Cash or Pink-Slip Race -> Garage`
 
 Implemented gameplay includes:
 
-- rotating used-car classifieds;
+- rotating used-car classifieds presented as a newspaper, with a full article opened before any purchase action;
+- model-specific side-view art for every current body family in the vehicle catalogue;
 - multiple owned cars and active-car selection;
+- independently removable/refittable front and rear bumpers, with paid garage labour and persistent fitment state;
 - cash economy;
 - carburettor, intake, exhaust, camshaft, transmission, tyre and full engine upgrades;
 - engine swaps that materially change horsepower and survive saves;
@@ -63,7 +65,7 @@ The garage mechanics are intentionally modular so the quick auto-install flow ca
 
 ## Art sources
 
-Existing race placeholders include Kenney CC0 Racing Pack material. Presentation assets are being replaced by authored, model-specific vehicle layers and a single realistic garage scene under the rendering contracts above. See [`assets/README.md`](assets/README.md) for tracked third-party provenance.
+The active garage/newspaper vehicle presentation uses the complete first-party model-specific neutral-grey master roster, with paint, wheel, detail and removable-bumper layer separation. Older Kenney CC0 material remains only as legacy/prototype provenance. See [`assets/README.md`](assets/README.md) for the active roster and tracked third-party history.
 
 ## Upstream acceleration
 
