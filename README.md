@@ -2,6 +2,14 @@
 
 A native street-rod garage and racing game built around the hands-on car building, classifieds, street racing and pink-slip progression of the classic Street Rod games.
 
+## Engineering ethos
+
+What happens when the hands-on appeal of classic street-rod games is rebuilt from the underlying car, garage and racing systems rather than cloned as a surface imitation? Backyard Racer owns its vehicle state, economy, progression, race simulation and presentation as one coherent game.
+
+Classic Street Rod games and public engineering work are reference material: they show mechanics worth understanding, but they do not define this project's runtime behaviour. Reusable first-party infrastructure comes from an exact pinned Common revision; game-specific rules remain here. External code is absorbed only deliberately, with its licence and behaviour understood, rather than becoming an uncontrolled dependency whose later changes can alter the game.
+
+The project keeps proven ideas when they remain fun and mechanically sound, and replaces them when a new design measurably improves control, fidelity, readability or maintainability. The aim is not novelty for its own sake, but a stronger implementation of the experience.
+
 ## Shared foundation
 
 Backyard Racer consumes **Infiltratr Common** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
