@@ -147,7 +147,7 @@
         frame.fill(32, 77, width - 64, 30, ink);
         text_center({32, 77, width - 64, 30}, "MOTORING CLASSIFIEDS - USED CARS",
                     GlyphAtlas::Tone::Pale, 2);
-        text(34, 111, "PRIVATE SALES - PRICES AUD - POWER kW - MASS kg - CLICK A LISTING TO BUY",
+        text(34, 111, "PRIVATE SALES - PRICES AUD - POWER kW - MASS kg - CLICK A LISTING TO READ",
              GlyphAtlas::Tone::Ink, 1);
 
         const int content_top = 126;
