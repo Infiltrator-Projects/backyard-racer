@@ -145,6 +145,23 @@ Static artwork must not be decoded again for every pointer movement or animation
 
 Where runtime modification is needed — such as repainting a neutral-grey car body — the renderer may create/cache a derived pixel surface, but the source asset remains independent and reusable.
 
+## Classifieds newspaper contract
+
+The classifieds screen is a special-purpose raster page, not a GUI layout with
+newspaper styling applied afterward.
+
+Its production composition happens on a fixed **640x360** low-resolution
+newspaper surface. Type, rules, side advertisements, selection marks and the
+footer are written into that page as bitmap pixels. The completed page is then
+scaled to the game framebuffer with **nearest-neighbour** sampling.
+
+The native page resolution is intentionally high enough that body copy remains
+small and dense at a 1280x720 host size. Regressions to 320x180 or other layouts
+that enlarge the 5x7 body glyphs into oversized terminal-like lettering are
+explicitly rejected. Side-ad text must fit without clipping, body listings must
+read as compact classified copy rather than cards, and large full-width black
+section banners are not part of the visual language.
+
 ## Platform boundary
 
 The platform layer is deliberately thin.
