@@ -27,7 +27,7 @@ namespace backyard_racer {
 namespace {
 
 constexpr int kStartingCash = 4000;
-constexpr int kSaveVersion = 3;
+constexpr int kSaveVersion = 4;
 constexpr std::size_t kMaxSavedCars = 64;
 constexpr std::size_t kMaxSavedParts = 256;
 constexpr std::size_t kWeeklyListingCount = 8;
@@ -507,6 +507,35 @@ void GameState::install_part(OwnedCar& car, const PartSpec& part) {
     *it = part;
 }
 
+bool GameState::set_bumper(BumperPosition position, bool installed,
+                           int* charged_price, std::string* error) {
+    OwnedCar* car = active_car();
+    if (!car) {
+        set_error(error, "BUY A CAR FIRST");
+        return false;
+    }
+
+    bool& current = position == BumperPosition::Front
+        ? car->front_bumper_installed
+        : car->rear_bumper_installed;
+    if (current == installed) {
+        set_error(error, installed ? "BUMPER IS ALREADY FITTED" : "BUMPER IS ALREADY REMOVED");
+        return false;
+    }
+
+    const int price = bumper_change_cost();
+    if (cash_ < price) {
+        set_error(error, "NOT ENOUGH CASH FOR BUMPER WORK");
+        return false;
+    }
+
+    cash_ -= price;
+    current = installed;
+    if (charged_price) *charged_price = price;
+    persist();
+    return true;
+}
+
 bool GameState::buy_part(std::size_t part_index, std::string* error) {
     OwnedCar* car = active_car();
     if (!car) {
@@ -768,7 +797,9 @@ bool GameState::save_to(const std::string& path, std::string* error) const {
             << static_cast<unsigned>(owned.paint.g) << ' '
             << static_cast<unsigned>(owned.paint.b) << ' '
             << std::quoted(owned.paint.name) << ' '
-            << (owned.paint.custom ? 1 : 0) << '\n';
+            << (owned.paint.custom ? 1 : 0) << ' '
+            << (owned.front_bumper_installed ? 1 : 0) << ' '
+            << (owned.rear_bumper_installed ? 1 : 0) << '\n';
         write_car(out, owned.base);
         for (const auto& part : owned.installed_parts) write_part(out, part);
     }
@@ -862,6 +893,8 @@ bool GameState::load_from(const std::string& path, std::string* error) {
             set_error(error, "CORRUPT OWNED CAR DATA");
             return false;
         }
+        int front_bumper = 1;
+        int rear_bumper = 1;
         if (version >= 2) {
             unsigned r = 0, g = 0, b = 0;
             int custom = 0;
@@ -874,9 +907,18 @@ bool GameState::load_from(const std::string& path, std::string* error) {
             paint.g = static_cast<std::uint8_t>(g);
             paint.b = static_cast<std::uint8_t>(b);
             paint.custom = custom != 0;
+            if (version >= 4 &&
+                (!(in >> front_bumper >> rear_bumper) ||
+                 (front_bumper != 0 && front_bumper != 1) ||
+                 (rear_bumper != 0 && rear_bumper != 1))) {
+                set_error(error, "CORRUPT BUMPER DATA");
+                return false;
+            }
         }
         OwnedCar owned;
         owned.condition = condition;
+        owned.front_bumper_installed = front_bumper != 0;
+        owned.rear_bumper_installed = rear_bumper != 0;
         if (!read_car(in, owned.base, version) || !sane_car(owned.base)) {
             set_error(error, "CORRUPT GARAGE CAR DATA");
             return false;
