@@ -42,7 +42,7 @@
         if (car.base.id == "falcon64" || car.base.id == "nova66")
             return std::clamp(width * 59 / 100, 560, 790);
         if (car.base.id == "charger68" || car.base.id == "torino69")
-            return std::clamp(width * 64 / 100, 600, 860);
+            return std::clamp(width * 64 / 100, 600, kVehicleMaxDisplayWidth);
         if (car.base.id == "gto69" || car.base.id == "roadrunner69" ||
             car.base.id == "chevelle70")
             return std::clamp(width * 62 / 100, 580, 830);
