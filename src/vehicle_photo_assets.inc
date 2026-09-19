@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Packed 12-car reference-art sheet extracted from the approved Backyard Racer
+// vehicle presentation. 12 rows, 512x160 each, front-left/rear-right.
+inline constexpr IndexedAsset vehicle_photo_sheet_hd{512,1920,32,
+#include "vehicle_photo_chunks/sheet_00.inc"
+#include "vehicle_photo_chunks/sheet_01.inc"
+#include "vehicle_photo_chunks/sheet_02.inc"
+#include "vehicle_photo_chunks/sheet_03a.inc"
+#include "vehicle_photo_chunks/sheet_03b.inc"
+#include "vehicle_photo_chunks/sheet_03c.inc"
+};
