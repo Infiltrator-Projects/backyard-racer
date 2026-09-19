@@ -8,7 +8,6 @@
 
 namespace backyard_racer::scene_assets {
 #include "garage_hd_asset.inc"
-#include "vehicle_model_assets.inc"
 #include "ui_font_asset.inc"
 #include "menu_chrome_asset.inc"
 }
