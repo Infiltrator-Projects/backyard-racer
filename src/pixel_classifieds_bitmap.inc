@@ -189,7 +189,7 @@
         paper_dotted_rule_h(used_x + used_w + 8, 40,
                             524 - (used_x + used_w + 8));
         paper_text(classifieds_list_x + 4, 47,
-                   "PRIVATE SALES - PRICES AUD - POWER KW - MASS KG",
+                   "PRIVATE SALES - CLICK AN AD TO READ - AUD / KW / KG",
                    paper_ink(), 1, false, classifieds_list_w - 8);
 
         // Side advertisements stay dense and cheap-looking, but text is given
