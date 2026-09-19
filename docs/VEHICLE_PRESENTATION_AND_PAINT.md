@@ -26,15 +26,15 @@ It must not contain a vehicle, vehicle shadow, vehicle-specific paint colour or 
 
 The exact same garage background remains visible when a car is purchased, when a car arrives, while it is parked, while it leaves, while another car arrives and while the garage is temporarily empty between cars.
 
-## Vehicle asset principle: neutral grey masters
+## Vehicle asset principle: HD neutral-grey layered masters
 
-Every vehicle model is authored from a neutral-grey master for the paintable bodywork.
+Every vehicle model is authored from a neutral-grey HD master for the paintable bodywork. The production renderer must not upscale tiny sprite art: the current masters are generated at 960×300 from a 2× supersampled working surface, while garage display width is capped below the master width.
 
 The neutral grey is not the final in-game colour. It is a luminance/shading source. The renderer tints the grey body at runtime so the same source asset can represent any paint colour while retaining highlights, reflections, panel shading and body contours.
 
 Only paintable body surfaces are recoloured. Tyres, glass, chrome, lights, badges, trim, grilles, exhausts and other non-painted details remain independent of the chosen paint colour.
 
-A model therefore uses separate logical layers even if the authoring pipeline later packs some of them together:
+A model therefore uses genuinely separate logical layers; the active renderer constructs them independently rather than splitting a tiny composite sprite after the fact:
 
 - shadow layer;
 - paintable neutral-grey body layer;
@@ -203,33 +203,13 @@ with signed distance preserving forward/reverse rotation direction.
 
 Input that would mutate garage occupancy should be locked or deliberately queued while a drive-in/drive-out transition is in progress so the scene cannot end in an impossible mixed state.
 
-## Asset layout
+## Active HD vehicle implementation
 
-A practical repository layout is:
+Vehicle geometry is defined by model-specific HD profiles in the native renderer. Each profile supplies its real-car proportion cues—wheelbase, roofline, greenhouse, bonnet/deck relationship and model-specific details—and produces independent body, detail, wheel and bumper surfaces.
 
-```text
-assets/
-  garage/
-    garage_open.png
-  cars/
-    falcon64/
-      body_grey.png
-      details.png
-      wheel_front.png
-      wheel_rear.png
-      bumper_front.png
-      bumper_rear.png
-      shadow.png
-    mustang65/
-      body_grey.png
-      details.png
-      wheel_front.png
-      wheel_rear.png
-      shadow.png
-    ...
-```
+The final master is 960×300, rendered from a 1920×600 supersampled working surface and reduced with the shared bilinear compositor. Because the in-garage car width is capped at 860 pixels, the game never enlarges a low-resolution vehicle source to fill the garage.
 
-Equivalent packed formats are acceptable later, but the logical separation must remain because body recolouring and wheel rotation require independent layers.
+This replaces the former 240×80 indexed-sprite path. Reintroducing a low-resolution vehicle master or silently falling back to a generic body is a presentation regression.
 
 ## Renderer requirements
 
