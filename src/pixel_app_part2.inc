@@ -88,12 +88,17 @@ struct CarArt {
     SurfaceOwner details;
     SurfaceOwner rear_wheel;
     SurfaceOwner front_wheel;
+    SurfaceOwner rear_bumper;
+    SurfaceOwner front_bumper;
     double rear_x = 0.23;
     double front_x = 0.77;
     double wheel_y = 0.80;
     double wheel_r = 0.105;
     int paint_min = 80;
     int paint_max = 245;
+    double rear_bumper_max_x = 0.14;
+    double front_bumper_min_x = 0.86;
+    double bumper_min_y = 0.72;
 };
 
 void split_car_art(CarArt& art) {
@@ -110,6 +115,10 @@ void split_car_art(CarArt& art) {
     art.front_wheel.resize(wheel_size, wheel_size);
     art.rear_wheel.clear(rgba(0, 0, 0, 0));
     art.front_wheel.clear(rgba(0, 0, 0, 0));
+    art.rear_bumper.resize(width, height);
+    art.front_bumper.resize(width, height);
+    art.rear_bumper.clear(rgba(0, 0, 0, 0));
+    art.front_bumper.clear(rgba(0, 0, 0, 0));
 
     const int rear_cx = static_cast<int>(std::lround(art.rear_x * width));
     const int front_cx = static_cast<int>(std::lround(art.front_x * width));
@@ -132,15 +141,32 @@ void split_car_art(CarArt& art) {
             const bool rear = rear_dx * rear_dx + wheel_dy * wheel_dy <= source_radius * source_radius;
             const bool front = front_dx * front_dx + wheel_dy * wheel_dy <= source_radius * source_radius;
 
-            // Only non-body pixels may become rotating wheel pixels. This keeps
-            // painted fenders and quarter panels rigid even where they overlap
-            // the circular wheel extraction area.
-            if ((rear || front) && !paintable) {
+            // Active vehicle masters paint the complete wheel on top of the
+            // body, so every source pixel in these circles belongs to the
+            // independently rotating wheel layer.
+            if (rear || front) {
                 SurfaceOwner& wheel = rear ? art.rear_wheel : art.front_wheel;
                 const int center_x = rear ? rear_cx : front_cx;
                 infiltratr_surface_set_pixel(&wheel.get(),
                     x - center_x + source_radius,
                     y - wheel_cy + source_radius, c);
+                continue;
+            }
+
+            // Bumpers are independent removable chrome/detail layers. They are
+            // deliberately extracted by geometry after the wheel masks so a
+            // bumper can disappear without affecting paint, lamps or wheels.
+            const bool in_bumper_band =
+                y >= static_cast<int>(std::lround(height * art.bumper_min_y));
+            const bool rear_bumper =
+                in_bumper_band &&
+                x <= static_cast<int>(std::lround(width * art.rear_bumper_max_x));
+            const bool front_bumper =
+                in_bumper_band &&
+                x >= static_cast<int>(std::lround(width * art.front_bumper_min_x));
+            if (!paintable && (rear_bumper || front_bumper)) {
+                SurfaceOwner& bumper = rear_bumper ? art.rear_bumper : art.front_bumper;
+                infiltratr_surface_set_pixel(&bumper.get(), x, y, c);
                 continue;
             }
 
@@ -166,6 +192,8 @@ struct VehicleCache {
     SurfaceOwner details;
     SurfaceOwner rear_wheel;
     SurfaceOwner front_wheel;
+    SurfaceOwner rear_bumper;
+    SurfaceOwner front_bumper;
     SurfaceOwner shadow;
 };
 
@@ -230,29 +258,34 @@ struct PixelApp::Impl {
     void load_assets() {
         garage_source = load_indexed_asset(scene_assets::garage_hd);
 
-        CarArt falcon;
-        falcon.id = "falcon64";
-        falcon.source = load_indexed_asset(scene_assets::falcon_hd);
-        falcon.rear_x = 0.225;
-        falcon.front_x = 0.775;
-        falcon.wheel_y = 0.80;
-        falcon.wheel_r = 0.13;
-        falcon.paint_min = 120;
-        falcon.paint_max = 248;
-        split_car_art(falcon);
-        car_art.push_back(std::move(falcon));
+        auto add_car_art = [&](const char* id,
+                               const scene_assets::IndexedAsset& source,
+                               double rear_x, double front_x) {
+            CarArt art;
+            art.id = id;
+            art.source = load_indexed_asset(source);
+            art.rear_x = rear_x;
+            art.front_x = front_x;
+            art.wheel_y = 0.7625;
+            art.wheel_r = 0.175;
+            art.paint_min = 125;
+            art.paint_max = 230;
+            split_car_art(art);
+            car_art.push_back(std::move(art));
+        };
 
-        CarArt mustang;
-        mustang.id = "mustang65";
-        mustang.source = load_indexed_asset(scene_assets::mustang_hd);
-        mustang.rear_x = 0.207;
-        mustang.front_x = 0.765;
-        mustang.wheel_y = 0.75;
-        mustang.wheel_r = 0.175;
-        mustang.paint_min = 70;
-        mustang.paint_max = 205;
-        split_car_art(mustang);
-        car_art.push_back(std::move(mustang));
+        add_car_art("falcon64",      scene_assets::falcon64_hd,      0.229, 0.783);
+        add_car_art("mustang65",     scene_assets::mustang65_hd,     0.229, 0.792);
+        add_car_art("nova66",        scene_assets::nova66_hd,        0.225, 0.783);
+        add_car_art("camaro67",      scene_assets::camaro67_hd,      0.238, 0.804);
+        add_car_art("charger68",     scene_assets::charger68_hd,     0.229, 0.808);
+        add_car_art("gto69",         scene_assets::gto69_hd,         0.233, 0.796);
+        add_car_art("roadrunner69",  scene_assets::roadrunner69_hd,  0.225, 0.792);
+        add_car_art("challenger70",  scene_assets::challenger70_hd,  0.238, 0.812);
+        add_car_art("cougar68",      scene_assets::cougar68_hd,      0.229, 0.808);
+        add_car_art("torino69",      scene_assets::torino69_hd,      0.229, 0.808);
+        add_car_art("chevelle70",    scene_assets::chevelle70_hd,    0.233, 0.800);
+        add_car_art("barracuda70",   scene_assets::barracuda70_hd,   0.238, 0.812);
     }
 
     CarArt* art_for(const std::string& id) {
