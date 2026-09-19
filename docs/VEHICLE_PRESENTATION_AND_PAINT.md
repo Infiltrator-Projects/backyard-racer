@@ -158,7 +158,7 @@ If the garage is empty, only the incoming half of that sequence occurs.
 
 If the requested car is already physically parked in the garage, no movement occurs.
 
-The visual model does not flip direction merely to reverse. It retains its normal side orientation; rightward movement is reverse motion and leftward movement is forward motion.
+The visual model does not flip direction merely to reverse. Every active side-view vehicle master is permanently **left-facing**: the front of the car is on the left and the rear is on the right. Right-to-left movement is therefore forward motion into the garage; left-to-right movement is reverse motion out of the garage.
 
 ## Runtime garage compositing order
 
