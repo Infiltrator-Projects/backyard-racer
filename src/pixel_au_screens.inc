@@ -226,7 +226,7 @@
         const bool moving = motion != Motion::Idle;
         if (displayed) {
             const OwnedCar& car = *displayed;
-            panel({26, 82, 470, 138});
+            panel({26, 82, 760, 160});
             text(44, 101, car_display_name(car.base), GlyphAtlas::Tone::Gold, 2);
             text(44, 128,
                  (car.base.variant.empty() ? std::string("ENGINE") : car.base.variant) +
@@ -244,6 +244,14 @@
                  GlyphAtlas::Tone::Pale, 2);
             button({38, 204, 138, 34}, "REPAIR", !moving && car.repair_cost() > 0);
             button({190, 204, 138, 34}, "SELL CAR", !moving);
+            const std::string front_bumper_action =
+                car.front_bumper_installed ? "FRONT OFF $50" : "FRONT ON $50";
+            const std::string rear_bumper_action =
+                car.rear_bumper_installed ? "REAR OFF $50" : "REAR ON $50";
+            button({342, 204, 190, 34}, front_bumper_action,
+                   !moving && game.cash() >= GameState::bumper_change_cost());
+            button({546, 204, 190, 34}, rear_bumper_action,
+                   !moving && game.cash() >= GameState::bumper_change_cost());
             const int x = static_cast<int>(std::lround(moving ? car_x : parked_x(car)));
             draw_car(car, x, height * 86 / 100, wheel_angle);
         } else {
