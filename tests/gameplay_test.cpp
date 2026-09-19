@@ -66,6 +66,19 @@ int main() {
     if (game.active_car()->condition != 100) return fail("newly bought car did not start at full condition");
     if (game.active_car()->base.variant_id.empty() || game.active_car()->base.engine_id.empty())
         return fail("bought car lost variant or engine identity");
+    if (!game.active_car()->front_bumper_installed || !game.active_car()->rear_bumper_installed)
+        return fail("purchased car did not start with both bumpers fitted");
+
+    const int cash_before_bumper = game.cash();
+    int bumper_price = 0;
+    if (!game.set_bumper(BumperPosition::Front, false, &bumper_price, &error))
+        return fail("could not remove front bumper: " + error);
+    if (bumper_price != GameState::bumper_change_cost())
+        return fail("bumper work charged the wrong amount");
+    if (game.cash() != cash_before_bumper - bumper_price)
+        return fail("bumper work did not debit cash");
+    if (!game.active_car() || game.active_car()->front_bumper_installed)
+        return fail("front bumper did not become removable");
 
     const int stock_hp = game.active_car()->horsepower();
     if (!game.buy_part(0, &error)) return fail("could not buy first carb: " + error);
@@ -138,6 +151,9 @@ int main() {
         return fail("active car variant did not survive save/load");
     if (restored.active_car()->base.engine_id != game.active_car()->base.engine_id)
         return fail("engine swap did not survive save/load");
+    if (restored.active_car()->front_bumper_installed != game.active_car()->front_bumper_installed ||
+        restored.active_car()->rear_bumper_installed != game.active_car()->rear_bumper_installed)
+        return fail("bumper state did not survive save/load");
     if (restored.active_car()->horsepower() != game.active_car()->horsepower())
         return fail("installed performance parts did not survive save/load");
 
