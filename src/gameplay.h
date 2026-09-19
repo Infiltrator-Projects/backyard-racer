@@ -18,6 +18,11 @@ enum class PartType {
     Engine
 };
 
+enum class BumperPosition {
+    Front,
+    Rear
+};
+
 struct PartSpec {
     std::string id;
     std::string name;
@@ -75,6 +80,8 @@ struct OwnedCar {
     std::vector<PartSpec> installed_parts;
     int condition = 100;
     PaintState paint{};
+    bool front_bumper_installed = true;
+    bool rear_bumper_installed = true;
 
     int horsepower() const;
     double traction() const;
@@ -138,6 +145,11 @@ public:
                             std::string* error = nullptr);
     bool buy_part(std::size_t part_index, std::string* error = nullptr);
     bool install_spare(std::size_t spare_index, std::string* error = nullptr);
+
+    static constexpr int bumper_change_cost() { return 50; }
+    bool set_bumper(BumperPosition position, bool installed,
+                    int* charged_price = nullptr,
+                    std::string* error = nullptr);
 
     std::vector<EngineSpec> compatible_engines() const;
     bool swap_engine(const std::string& engine_id, int* installed_price = nullptr,
