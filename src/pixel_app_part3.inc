@@ -39,9 +39,14 @@
     }
 
     int model_width(const OwnedCar& car) const {
-        if (car.base.id == "falcon64") return std::clamp(width * 62 / 100, 600, 850);
-        if (car.base.id == "mustang65") return std::clamp(width * 58 / 100, 560, 800);
-        return std::clamp(width * 58 / 100, 560, 800);
+        if (car.base.id == "falcon64" || car.base.id == "nova66")
+            return std::clamp(width * 59 / 100, 560, 790);
+        if (car.base.id == "charger68" || car.base.id == "torino69")
+            return std::clamp(width * 64 / 100, 600, 860);
+        if (car.base.id == "gto69" || car.base.id == "roadrunner69" ||
+            car.base.id == "chevelle70")
+            return std::clamp(width * 62 / 100, 580, 830);
+        return std::clamp(width * 60 / 100, 570, 810);
     }
 
     void build_vehicle_cache(const OwnedCar& car, int draw_width) {
@@ -72,6 +77,10 @@
         const int front_h = std::max(1, static_cast<int>(std::lround(art->front_wheel.height() * scale)));
         vehicle_cache.rear_wheel = scaled_copy(art->rear_wheel, rear_w, rear_h);
         vehicle_cache.front_wheel = scaled_copy(art->front_wheel, front_w, front_h);
+        vehicle_cache.rear_bumper =
+            scaled_copy(art->rear_bumper, draw_width, vehicle_cache.height);
+        vehicle_cache.front_bumper =
+            scaled_copy(art->front_bumper, draw_width, vehicle_cache.height);
 
         vehicle_cache.rear_cx = static_cast<int>(std::lround(art->rear_x * draw_width));
         vehicle_cache.front_cx = static_cast<int>(std::lround(art->front_x * draw_width));
@@ -110,6 +119,8 @@
         infiltratr_surface_blit_rotated(&frame.get(), &vehicle_cache.front_wheel.get(),
             x + vehicle_cache.front_cx, y + vehicle_cache.wheel_cy, angle);
         frame.blit(vehicle_cache.details, x, y);
+        if (car.rear_bumper_installed) frame.blit(vehicle_cache.rear_bumper, x, y);
+        if (car.front_bumper_installed) frame.blit(vehicle_cache.front_bumper, x, y);
     }
 
     double parked_x(const OwnedCar& car) const {
