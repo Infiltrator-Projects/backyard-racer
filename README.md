@@ -4,7 +4,7 @@ A native street-rod garage and racing game built around the hands-on car buildin
 
 ## Engineering ethos
 
-What happens when the hands-on appeal of classic street-rod games is rebuilt from the underlying car, garage and racing systems rather than cloned as a surface imitation? Backyard Racer owns its vehicle state, economy, progression, race simulation and presentation as one coherent game.
+What happens when the hands-on appeal of classic street-rod games is rebuilt from first principles through the underlying car, garage and racing systems rather than cloned as a surface imitation? Backyard Racer owns its vehicle state, economy, progression, race simulation and presentation as one coherent game.
 
 Classic Street Rod games and public engineering work are reference material: they show mechanics worth understanding, but they do not define this project's runtime behaviour. Reusable first-party infrastructure comes from an exact pinned Common revision; game-specific rules remain here. External code is absorbed only deliberately, with its licence and behaviour understood, rather than becoming an uncontrolled dependency whose later changes can alter the game.
 
