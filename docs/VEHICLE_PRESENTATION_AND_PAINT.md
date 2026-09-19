@@ -40,7 +40,9 @@ A model therefore uses separate logical layers even if the authoring pipeline la
 - paintable neutral-grey body layer;
 - fixed-detail layer for chrome, glass, lamps, badges, trim and non-painted surfaces;
 - independently rotatable front wheel;
-- independently rotatable rear wheel.
+- independently rotatable rear wheel;
+- independently removable front-bumper layer;
+- independently removable rear-bumper layer.
 
 The source/master artwork for each model must not permanently bake red, cream, blue or any other body colour into the paintable shell.
 
@@ -94,9 +96,13 @@ Opening or returning to the garage does not automatically trigger an arrival ani
 
 A drive-in/drive-out sequence is triggered only when garage occupancy changes.
 
-## Buying a car from the newspaper
+## Reading and buying from the newspaper
 
-Buying from Classifieds/Newspaper behaves differently depending on whether the garage is currently empty or occupied.
+Clicking a classified listing opens that listing's full newspaper article. A listing click never purchases a vehicle directly.
+
+The article is still part of the newspaper presentation and shows the model-specific vehicle image, asking price, engine/variant, metric power and mass, seller notes and the classified reference. Purchase is a separate explicit action inside the article. Returning from the article does not alter the listing or the player's money.
+
+After the explicit purchase action, buying from Classifieds/Newspaper behaves differently depending on whether the garage is currently empty or occupied.
 
 ### First car / empty garage
 
@@ -163,7 +169,9 @@ For each complete rendered frame, the intended garage composition is:
 3. tinted neutral-grey body at the current vehicle position;
 4. independently rotated front and rear wheels;
 5. fixed vehicle details such as chrome, glass, lights, badges and trim;
-6. game UI and interaction artwork.
+6. front bumper, if currently fitted;
+7. rear bumper, if currently fitted;
+8. game UI and interaction artwork.
 
 The complete vehicle visual object translates as one unit; wheel angle changes independently according to travel.
 
@@ -209,6 +217,8 @@ assets/
       details.png
       wheel_front.png
       wheel_rear.png
+      bumper_front.png
+      bumper_rear.png
       shadow.png
     mustang65/
       body_grey.png
@@ -229,6 +239,7 @@ The presentation renderer must support:
 - scaled compositing without destroying alpha;
 - tinting a neutral-grey body layer with arbitrary 24-bit RGB while preserving luminance;
 - independent wheel rotation;
+- independent front/rear bumper visibility from persistent vehicle state;
 - per-model asset lookup by car ID;
 - explicit garage occupancy state separate from ownership/selection state;
 - vehicle translation controlled by runtime game state;
@@ -247,6 +258,7 @@ The following are not acceptable as the final architecture:
 - permanently baking a car's paint colour into the model artwork;
 - using one generic silhouette for multiple named real models;
 - repainting chrome, glass, tyres or trim with body colour;
+- baking either bumper permanently into the body layer;
 - showing a static composed screenshot instead of independent scene and vehicle layers;
 - pre-rendering the drive-in or drive-out animation into images/video;
 - automatically replaying the arrival animation every time the garage screen opens;
@@ -258,3 +270,9 @@ The following are not acceptable as the final architecture:
 ## Current design decision
 
 The neutral-grey-master approach is the required design. Backyard Racer has one permanent realistic garage scene and an explicit physical garage-occupancy state. If the garage is empty, a car drives in from the right. If another car is already parked and the player buys or moves a different car into the garage, the current car first reverses out to the right and only then does the replacement drive in from the right. A car already parked remains parked until a real occupancy change occurs.
+
+## Removable bumpers
+
+Every owned car tracks front and rear bumper fitment independently. Both ends are fitted when a car is acquired. Removing or refitting either end is a garage operation with an explicit cash cost. The fitment state is saved with the owned car and survives reloads.
+
+Bumper work changes the rendered vehicle immediately. It does not replace the car artwork with a second full-car bitmap: the corresponding bumper layer is simply omitted or restored while the same body, wheels, paint and fixed details remain in place.
