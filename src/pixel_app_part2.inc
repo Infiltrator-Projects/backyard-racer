@@ -211,7 +211,9 @@ std::optional<OwnedCar> copy_active(const GameState& game) {
 } // namespace
 
 struct PixelApp::Impl {
-    enum class Screen { Menu, Classifieds, Garage, Parts, Diner, Race, Result, Settings };
+    enum class Screen {
+        Menu, Classifieds, ClassifiedArticle, Garage, Parts, Diner, Race, Result, Settings
+    };
     enum class Motion { Idle, Entering, Exiting };
 
     GameState game;
@@ -234,6 +236,7 @@ struct PixelApp::Impl {
     int mouse_x = 0;
     int mouse_y = 0;
     std::string message = "BUY A CAR. BUILD IT. RACE IT.";
+    std::optional<std::size_t> selected_classified_index;
 
     std::optional<OwnedCar> displayed;
     std::optional<OwnedCar> incoming;
