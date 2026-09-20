@@ -4,6 +4,20 @@ cmake_minimum_required(VERSION 3.20)
 project(BackyardRacer VERSION 0.6.0 LANGUAGES C CXX)
 
 include(FetchContent)
+include(GNUInstallDirs)
+
+set(BACKYARD_BUILD_PROFILE "generic" CACHE STRING
+    "Build profile: generic for distributable packages, native for this machine")
+set_property(CACHE BACKYARD_BUILD_PROFILE PROPERTY STRINGS generic native)
+if(BACKYARD_BUILD_PROFILE STREQUAL "native")
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" OR
+       CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-march=native -mtune=native)
+    endif()
+elseif(NOT BACKYARD_BUILD_PROFILE STREQUAL "generic")
+    message(FATAL_ERROR
+        "BACKYARD_BUILD_PROFILE must be 'generic' or 'native'")
+endif()
 
 # Common owns generic timing, durable POSIX publication and software-pixel
 # surface operations. Pin the exact reviewed release so gameplay, renderer and
@@ -49,6 +63,16 @@ set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(backyard-racer PRIVATE
     backyard-pixel-core
     X11::X11)
+
+# Installation deliberately exposes only the finished game. Infiltratr Common
+# is linked into the executable and its own development/install surface must not
+# leak into Backyard Racer packages.
+install(TARGETS backyard-racer
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    COMPONENT Runtime)
+install(FILES README.md
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/backyard-racer"
+    COMPONENT Runtime)
 
 add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
 target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
