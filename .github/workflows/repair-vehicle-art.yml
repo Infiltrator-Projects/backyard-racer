@@ -1,5 +1,5 @@
 name: Repair vehicle art stream
-# Manual convergence pass 6
+# Manual convergence pass 7
 
 on:
   push:
@@ -135,22 +135,19 @@ jobs:
               if best is not None and best[0][0]:
                   break
 
-          if best is None or (not best[0][0] and best[0][1] <= fail_byte + 4):
-              for pos in range(lo, hi):
-                  item = consider(stream[:pos] + stream[pos + 1:], "del", pos, stream[pos], "")
+          # Always evaluate alignment repairs as well as substitutions. A
+          # missing or duplicated Base64 character can otherwise masquerade as
+          # dozens of tiny "successful" substitutions.
+          for pos in range(lo, hi):
+              item = consider(stream[:pos] + stream[pos + 1:], "del", pos, stream[pos], "")
+              if item is not None and (best is None or item[0] > best[0]):
+                  best = item
+
+          for pos in range(lo, hi):
+              for new in alphabet:
+                  item = consider(stream[:pos] + new + stream[pos:], "ins", pos, "", new)
                   if item is not None and (best is None or item[0] > best[0]):
                       best = item
-
-          if best is None or (not best[0][0] and best[0][1] <= fail_byte + 4):
-              for pos in range(lo, hi):
-                  for new in alphabet:
-                      item = consider(stream[:pos] + new + stream[pos:], "ins", pos, "", new)
-                      if item is not None and (best is None or item[0] > best[0]):
-                          best = item
-                      if best is not None and best[0][0]:
-                          break
-                  if best is not None and best[0][0]:
-                      break
 
           if best is None or (not best[0][0] and best[0][1] <= fail_byte):
               raise RuntimeError(
