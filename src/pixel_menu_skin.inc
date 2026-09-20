@@ -27,7 +27,7 @@
     }
 
     const SurfaceOwner& authored_menu_chrome() {
-        static SurfaceOwner chrome = load_indexed_asset(scene_assets::menu_chrome);
+        static SurfaceOwner chrome = load_indexed_asset(scene_assets::menu_chrome, "menu_chrome");
         return chrome;
     }
 
