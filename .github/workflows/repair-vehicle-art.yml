@@ -80,9 +80,10 @@ jobs:
 
           def checkpoint_for(data, upto):
               dec = zlib.decompressobj()
+              produced = 0
               if upto:
-                  dec.decompress(data[:upto])
-              return dec
+                  produced += len(dec.decompress(data[:upto]))
+              return dec, produced
 
           repairs = []
           for iteration in range(40):
@@ -99,10 +100,10 @@ jobs:
               # Candidate edits are all after this compressed-byte checkpoint.
               prefix_byte = max(0, (lo * 3) // 4 - 16)
               try:
-                  prefix_state = checkpoint_for(data, prefix_byte)
+                  prefix_state, prefix_produced = checkpoint_for(data, prefix_byte)
               except zlib.error:
                   prefix_byte = max(0, fail_byte - 512)
-                  prefix_state = checkpoint_for(data, prefix_byte)
+                  prefix_state, prefix_produced = checkpoint_for(data, prefix_byte)
 
               best = None
 
@@ -115,9 +116,10 @@ jobs:
                       )
                   except Exception as exc:
                       return None
-                  if cprod > expected_max:
+                  total_produced = prefix_produced + cprod
+                  if total_produced > expected_max:
                       return None
-                  score = (1 if cok else 0, cfail, cprod)
+                  score = (1 if cok else 0, cfail, total_produced)
                   return (score, candidate, kind, pos, old, new, cmsg)
 
               # Substitution is overwhelmingly the common failure mode for these
