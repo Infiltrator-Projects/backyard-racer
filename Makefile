@@ -23,7 +23,7 @@ install-native: native
 	$(CMAKE) --install build-native --component Runtime --prefix "$(PREFIX)"
 
 deb:
-	./packaging/build-deb.sh
+	bash packaging/build-deb.sh
 
 clean:
 	rm -rf $(BUILD_DIR) build-native build-package dist
