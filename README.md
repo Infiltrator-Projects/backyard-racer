@@ -91,6 +91,23 @@ make run
 
 The executable is created at `build/backyard-racer`.
 
+The Linux build now has two explicit installation paths from the same CMake
+source graph:
+
+```sh
+# Generic distributable Debian package
+make deb
+
+# Hardware-native source build, test and install
+make native
+sudo make install-native PREFIX=/usr
+```
+
+The generic package is written to `dist/backyard-racer_<version>_<arch>.deb`.
+The native profile enables the compiler's local CPU tuning; the generic profile
+deliberately does not. Both profiles compile the same game implementation and
+run the same test suite before packaging/installation.
+
 Useful checks:
 
 ```sh
