@@ -2,7 +2,7 @@
         }
         // The old 5x7 bootstrap glyphs keep this split source self-contained,
         // but the shipped UI uses a real antialiased raster atlas.
-        base_ = load_indexed_asset(scene_assets::ui_font);
+        base_ = load_indexed_asset(scene_assets::ui_font, "ui_font");
         make_tone(pale_, rgba(239, 231, 207));
         make_tone(gold_, rgba(242, 211, 154));
         make_tone(red_, rgba(236, 106, 86));
@@ -424,9 +424,9 @@ struct PixelApp::Impl {
     }
 
     void load_assets() {
-        garage_source = load_indexed_asset(scene_assets::garage_hd);
+        garage_source = load_indexed_asset(scene_assets::garage_hd, "garage_hd");
         SurfaceOwner vehicle_sheet =
-            load_indexed_asset(scene_assets::vehicle_photo_sheet_hd);
+            load_indexed_asset(scene_assets::vehicle_photo_sheet_hd, "vehicle_photo_sheet_hd");
 
         car_art.clear();
         car_art.reserve(kPhotoCarProfiles.size());
