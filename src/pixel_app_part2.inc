@@ -254,8 +254,14 @@ SurfaceOwner extract_wheel(const SurfaceOwner& source,
 }
 
 CarArt make_photo_car_art(const SurfaceOwner& sheet, const PhotoCarProfile& p) {
-    constexpr int sheet_width = 960;
-    constexpr int row_height = 300;
+    const int sheet_width = sheet.width();
+    const int row_height = sheet.height() / static_cast<int>(kPhotoCarProfiles.size());
+
+    if (sheet_width <= 0 || row_height <= 0 ||
+        p.sheet_row < 0 ||
+        (p.sheet_row + 1) * row_height > sheet.height()) {
+        throw std::runtime_error("Embedded vehicle sheet has invalid dimensions");
+    }
 
     SurfaceOwner row = crop_surface(
         sheet, 0, p.sheet_row * row_height, sheet_width, row_height);
