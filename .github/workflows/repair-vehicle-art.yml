@@ -1,4 +1,5 @@
 name: Repair vehicle art stream
+# Restarted after applying validated early-byte repairs.
 
 on:
   push:
