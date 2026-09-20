@@ -41,7 +41,8 @@ jobs:
           deb="dist/backyard-racer_${version}_amd64.deb"
           test -s "$deb"
           test "$(dpkg-deb -f "$deb" Package)" = "backyard-racer"
-          dpkg-deb --fsys-tarfile "$deb" | tar -tf - | grep -qx './usr/bin/backyard-racer'
+          dpkg-deb --fsys-tarfile "$deb" | tar -tf - > package-files.txt
+          grep -Fx './usr/bin/backyard-racer' package-files.txt
 
       - name: Verify hardware-native source install
         shell: bash
