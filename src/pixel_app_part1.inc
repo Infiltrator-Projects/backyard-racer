@@ -137,7 +137,7 @@ std::vector<std::uint8_t> decode_base64(std::string_view text) {
     return out;
 }
 
-SurfaceOwner load_indexed_asset(const scene_assets::IndexedAsset& asset) {
+SurfaceOwner load_indexed_asset(const scene_assets::IndexedAsset& asset, const char* asset_name) {
     const auto compressed = decode_base64(asset.zlib_b64);
     const std::size_t pixel_count = static_cast<std::size_t>(asset.w) * asset.h;
     const std::size_t rgb_expected = static_cast<std::size_t>(asset.colors) * 3U + pixel_count;
@@ -153,7 +153,7 @@ SurfaceOwner load_indexed_asset(const scene_assets::IndexedAsset& asset) {
                             static_cast<uLong>(compressed.size()));
     }
     if (result != Z_OK) {
-        throw std::runtime_error("Embedded scene asset zlib decode failed");
+        throw std::runtime_error(std::string("Embedded scene asset zlib decode failed: ") + asset_name);
     }
     raw.resize(static_cast<std::size_t>(raw_size));
     const bool rgba_palette = raw.size() == rgba_expected;
