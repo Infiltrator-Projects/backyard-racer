@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           chmod +x packaging/build-deb.sh
           packaging/build-deb.sh build-package dist
-          deb="dist/backyard-racer_${version}_amd64.deb"
+          deb="dist/backyard-racer_${VERSION}_amd64.deb"
           test -s "$deb"
           test "$(dpkg-deb -f "$deb" Package)" = "backyard-racer"
           test "$(dpkg-deb -f "$deb" Version)" = "$VERSION"
@@ -74,8 +74,8 @@ jobs:
           rm -rf "$(dirname "$root")"
           mkdir -p "$root"
           git archive --format=tar --prefix="backyard-racer-$VERSION/" "$EXPECTED_SHA" > "$RUNNER_TEMP/source.tar"
-          gzip -n -c "$RUNNER_TEMP/source.tar" > "dist/source/backyard-racer_$VERSION_source.tar.gz"
-          sha256sum "dist/backyard-racer_${version}_amd64.deb" "dist/source/backyard-racer_$VERSION_source.tar.gz" > dist/SHA256SUMS.txt
+          gzip -n -c "$RUNNER_TEMP/source.tar" > "dist/source/backyard-racer_${VERSION}_source.tar.gz"
+          sha256sum "dist/backyard-racer_${VERSION}_amd64.deb" "dist/source/backyard-racer_${VERSION}_source.tar.gz" > dist/SHA256SUMS.txt
 
       - name: Publish immutable GitHub release
         env:
@@ -84,8 +84,8 @@ jobs:
         run: |
           set -euo pipefail
           tag="v$VERSION"
-          deb="dist/backyard-racer_${version}_amd64.deb"
-          source="dist/source/backyard-racer_$VERSION_source.tar.gz"
+          deb="dist/backyard-racer_${VERSION}_amd64.deb"
+          source="dist/source/backyard-racer_${VERSION}_source.tar.gz"
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             tag_commit="$(git rev-list -n 1 "$tag")"
             test "$tag_commit" = "$EXPECTED_SHA"
