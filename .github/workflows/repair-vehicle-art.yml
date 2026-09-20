@@ -33,6 +33,7 @@ jobs:
               pathlib.Path("src/vehicle_photo_chunks/sheet_03c.inc"),
           ]
           alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits + "+/"
+          expected_max = 32 * 4 + 512 * 1920
 
           lengths = []
           parts = []
@@ -113,6 +114,8 @@ jobs:
                           cdata, prefix_byte, prefix_state
                       )
                   except Exception as exc:
+                      return None
+                  if cprod > expected_max:
                       return None
                   score = (1 if cok else 0, cfail, cprod)
                   return (score, candidate, kind, pos, old, new, cmsg)
