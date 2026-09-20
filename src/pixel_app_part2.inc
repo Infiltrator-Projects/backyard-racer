@@ -255,7 +255,7 @@ SurfaceOwner extract_wheel(const SurfaceOwner& source,
 
 CarArt make_photo_car_art(const SurfaceOwner& sheet, const PhotoCarProfile& p) {
     const int sheet_width = sheet.width();
-    const int row_height = sheet.height() / static_cast<int>(kPhotoCarProfiles.size());
+    const int row_height = sheet.height() / 12;
 
     if (sheet_width <= 0 || row_height <= 0 ||
         p.sheet_row < 0 ||
