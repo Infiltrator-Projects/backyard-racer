@@ -32,164 +32,167 @@ jobs:
               pathlib.Path("src/vehicle_photo_chunks/sheet_03b.inc"),
               pathlib.Path("src/vehicle_photo_chunks/sheet_03c.inc"),
           ]
-          original_lengths = []
+          alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits + "+/"
+
+          lengths = []
           parts = []
           for path in paths:
               text = path.read_text().strip()
               if text.startswith('"') and text.endswith('"'):
                   text = text[1:-1]
               text = "".join(text.split())
-              original_lengths.append(len(text))
+              lengths.append(len(text))
               parts.append(text)
-
-          alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits + "+/"
           stream = "".join(parts)
 
-          def decoded_bytes(s):
-              clean = "".join(ch for ch in s if ch in alphabet or ch == "=")
-              clean += "=" * ((4 - len(clean) % 4) % 4)
-              return base64.b64decode(clean, validate=False)
+          def decode64(s):
+              s = "".join(ch for ch in s if ch in alphabet or ch == "=")
+              s += "=" * ((4 - len(s) % 4) % 4)
+              return base64.b64decode(s, validate=False)
 
-          def progress(s):
-              try:
-                  data = decoded_bytes(s)
-              except Exception as exc:
-                  return False, 0, 0, f"base64: {exc}"
-              dec = zlib.decompressobj()
+          def locate_failure(data, start=0, state=None):
+              dec = state.copy() if state is not None else zlib.decompressobj()
+              pos = start
               produced = 0
-              consumed = 0
-              step = 256
-              try:
-                  for start in range(0, len(data), step):
-                      chunk = data[start:start + step]
+              step = 2048
+              while pos < len(data):
+                  chunk = data[pos:min(len(data), pos + step)]
+                  checkpoint = dec.copy()
+                  try:
                       out = dec.decompress(chunk)
                       produced += len(out)
-                      consumed = start + len(chunk) - len(dec.unconsumed_tail)
-                  out = dec.flush()
-                  produced += len(out)
-                  if dec.eof:
-                      return True, len(data), produced, "ok"
-                  return False, consumed, produced, "incomplete zlib stream"
-              except zlib.error:
-                  # Narrow the failing 256-byte block to a byte position.
-                  block_start = max(0, consumed - step)
-                  dec = zlib.decompressobj()
-                  produced = 0
-                  try:
-                      if block_start:
-                          out = dec.decompress(data[:block_start])
-                          produced += len(out)
-                      for i in range(block_start, min(len(data), block_start + step + 2)):
-                          out = dec.decompress(data[i:i+1])
-                          produced += len(out)
-                      return False, min(len(data), block_start + step), produced, "zlib error"
-                  except zlib.error as exc:
-                      return False, i, produced, str(exc)
+                      pos += len(chunk)
+                  except zlib.error:
+                      dec = checkpoint
+                      for i, byte in enumerate(chunk):
+                          try:
+                              out = dec.decompress(bytes((byte,)))
+                              produced += len(out)
+                          except zlib.error as exc:
+                              return False, pos + i, produced, str(exc)
+                      return False, pos + len(chunk), produced, "zlib error"
+              try:
+                  produced += len(dec.flush())
+              except zlib.error as exc:
+                  return False, pos, produced, str(exc)
+              return dec.eof, len(data), produced, "ok" if dec.eof else "incomplete stream"
 
-          ok, consumed, produced, msg = progress(stream)
-          print(f"initial: ok={ok} consumed={consumed} produced={produced} msg={msg}")
+          def checkpoint_for(data, upto):
+              dec = zlib.decompressobj()
+              if upto:
+                  dec.decompress(data[:upto])
+              return dec
 
           repairs = []
-          for iteration in range(24):
-              ok, consumed, produced, msg = progress(stream)
+          for iteration in range(40):
+              data = decode64(stream)
+              ok, fail_byte, produced, msg = locate_failure(data)
+              print(f"pass {iteration}: ok={ok} fail_byte={fail_byte} produced={produced} {msg}")
               if ok:
                   break
 
-              center = max(0, min(len(stream) - 1, (consumed * 4) // 3))
+              center = max(0, min(len(stream) - 1, (fail_byte * 4) // 3))
+              lo = max(0, center - 72)
+              hi = min(len(stream), center + 41)
+
+              # Candidate edits are all after this compressed-byte checkpoint.
+              prefix_byte = max(0, (lo * 3) // 4 - 16)
+              try:
+                  prefix_state = checkpoint_for(data, prefix_byte)
+              except zlib.error:
+                  prefix_byte = max(0, fail_byte - 512)
+                  prefix_state = checkpoint_for(data, prefix_byte)
+
               best = None
 
-              # Search substitution first. A damaged manually embedded stream has
-              # historically been single-character corruption, so this is both
-              # fast and conservative.
-              lo = max(0, center - 48)
-              hi = min(len(stream), center + 49)
+              def consider(candidate, kind, pos, old, new):
+                  nonlocal_best = None
+                  try:
+                      cdata = decode64(candidate)
+                      cok, cfail, cprod, cmsg = locate_failure(
+                          cdata, prefix_byte, prefix_state
+                      )
+                  except Exception as exc:
+                      return None
+                  score = (1 if cok else 0, cfail, cprod)
+                  return (score, candidate, kind, pos, old, new, cmsg)
+
+              # Substitution is overwhelmingly the common failure mode for these
+              # manually chunked generated assets.
               for pos in range(lo, hi):
                   old = stream[pos]
-                  for ch in alphabet:
-                      if ch == old:
+                  for new in alphabet:
+                      if new == old:
                           continue
-                      candidate = stream[:pos] + ch + stream[pos+1:]
-                      cok, ccons, cprod, cmsg = progress(candidate)
-                      score = (1 if cok else 0, ccons, cprod)
-                      if best is None or score > best[0]:
-                          best = (score, "sub", pos, old, ch, candidate, cmsg)
-                      if cok:
+                      candidate = stream[:pos] + new + stream[pos + 1:]
+                      item = consider(candidate, "sub", pos, old, new)
+                      if item is not None and (best is None or item[0] > best[0]):
+                          best = item
+                      if best is not None and best[0][0]:
                           break
-                  if best and best[0][0]:
+                  if best is not None and best[0][0]:
                       break
 
-              # If substitution does not move the decoder materially forward,
-              # also check one-character deletion/insertion around the fault.
-              if best is None or (not best[0][0] and best[0][1] <= consumed + 8):
+              # If substitution made no useful forward progress, allow one
+              # character to have been dropped or duplicated.
+              if best is None or (not best[0][0] and best[0][1] <= fail_byte + 4):
                   for pos in range(lo, hi):
-                      candidate = stream[:pos] + stream[pos+1:]
-                      cok, ccons, cprod, cmsg = progress(candidate)
-                      score = (1 if cok else 0, ccons, cprod)
-                      if best is None or score > best[0]:
-                          best = (score, "del", pos, stream[pos], "", candidate, cmsg)
-                      if cok:
-                          break
-                  if not (best and best[0][0]):
+                      candidate = stream[:pos] + stream[pos + 1:]
+                      item = consider(candidate, "del", pos, stream[pos], "")
+                      if item is not None and (best is None or item[0] > best[0]):
+                          best = item
+                  if best is None or (not best[0][0] and best[0][1] <= fail_byte + 4):
                       for pos in range(lo, hi):
-                          for ch in alphabet:
-                              candidate = stream[:pos] + ch + stream[pos:]
-                              cok, ccons, cprod, cmsg = progress(candidate)
-                              score = (1 if cok else 0, ccons, cprod)
-                              if best is None or score > best[0]:
-                                  best = (score, "ins", pos, "", ch, candidate, cmsg)
-                              if cok:
+                          for new in alphabet:
+                              candidate = stream[:pos] + new + stream[pos:]
+                              item = consider(candidate, "ins", pos, "", new)
+                              if item is not None and (best is None or item[0] > best[0]):
+                                  best = item
+                              if best is not None and best[0][0]:
                                   break
-                          if best and best[0][0]:
+                          if best is not None and best[0][0]:
                               break
 
-              if best is None or (not best[0][0] and best[0][1] <= consumed):
+              if best is None or (not best[0][0] and best[0][1] <= fail_byte):
                   raise RuntimeError(
-                      f"Unable to improve corrupt stream at compressed byte {consumed}, "
-                      f"base64 position ~{center}"
+                      f"Could not repair stream near compressed byte {fail_byte}, "
+                      f"base64 position {center}"
                   )
 
-              score, kind, pos, old, new, stream, cmsg = best
+              score, stream, kind, pos, old, new, cmsg = best
               repairs.append((kind, pos, old, new, score[1], score[2]))
               print(
-                  f"repair {iteration+1}: {kind} pos={pos} {old!r}->{new!r}; "
-                  f"decoder now reaches {score[1]} bytes / {score[2]} output bytes"
+                  f"repair {len(repairs)}: {kind} @{pos} {old!r}->{new!r}; "
+                  f"next={score[1]} output={score[2]} {cmsg}"
               )
+          else:
+              raise RuntimeError("Vehicle artwork still corrupt after 40 repair passes")
 
-          ok, consumed, produced, msg = progress(stream)
-          if not ok:
-              raise RuntimeError(
-                  f"Stream still corrupt after {len(repairs)} repairs: "
-                  f"consumed={consumed} produced={produced} msg={msg}"
-              )
-
-          raw = zlib.decompress(decoded_bytes(stream))
-          print(f"repaired stream: compressed={len(decoded_bytes(stream))} decoded={len(raw)} repairs={repairs}")
-
+          data = decode64(stream)
+          raw = zlib.decompress(data)
           expected_rgb = 32 * 3 + 512 * 1920
           expected_rgba = 32 * 4 + 512 * 1920
           if len(raw) not in (expected_rgb, expected_rgba):
               raise RuntimeError(
-                  f"Decoded vehicle sheet has unexpected size {len(raw)}; "
-                  f"expected {expected_rgb} or {expected_rgba}"
+                  f"Decoded vehicle sheet size {len(raw)} is not "
+                  f"{expected_rgb} or {expected_rgba}"
               )
+          print(f"vehicle sheet repaired: compressed={len(data)} decoded={len(raw)} repairs={repairs}")
 
-          # Preserve the original six-file layout, adjusting only the final
-          # chunk if a repair inserted/deleted a character.
           offset = 0
           for index, path in enumerate(paths):
-              if index + 1 == len(paths):
+              if index == len(paths) - 1:
                   part = stream[offset:]
               else:
-                  length = original_lengths[index]
-                  part = stream[offset:offset + length]
-                  offset += length
+                  part = stream[offset:offset + lengths[index]]
+                  offset += lengths[index]
               path.write_text('"' + part + '"\n')
 
       - name: Commit repaired vehicle art
         shell: bash
         run: |
           if git diff --quiet -- src/vehicle_photo_chunks; then
-            echo "Vehicle art stream already valid; nothing to commit."
+            echo "Vehicle artwork already valid."
             exit 0
           fi
           git config user.name "github-actions[bot]"
