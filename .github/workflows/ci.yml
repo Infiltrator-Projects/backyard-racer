@@ -53,3 +53,10 @@ jobs:
           rm -rf native-stage
           DESTDIR="$PWD/native-stage" cmake --install build-native --component Runtime --prefix /usr
           test -x native-stage/usr/bin/backyard-racer
+
+      - name: Upload generic Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: backyard-racer-linux-amd64
+          path: dist/backyard-racer_0.6.0_amd64.deb
+          if-no-files-found: error
