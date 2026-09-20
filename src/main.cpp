@@ -27,7 +27,7 @@ const InfiltratrProjectInfo& project_info() {
         "0.6.0-dev", "Infiltrator-Projects/backyard-racer", "development",
         "Shannon Smith", "https://github.com/Infiltrator-Projects/backyard-racer",
         "GPL-3.0-or-later", "Street-rod garage and racing game", "backyard-racer",
-        "Copyright (c) 2000-2026 Shannon Smith"
+        "Copyright (c) 1993-2026 Shannon Smith"
     };
     return info;
 }
