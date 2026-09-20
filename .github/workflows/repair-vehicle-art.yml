@@ -95,8 +95,8 @@ jobs:
                   break
 
               center = max(0, min(len(stream) - 1, (fail_byte * 4) // 3))
-              lo = max(0, center - 72)
-              hi = min(len(stream), center + 41)
+              lo = max(0, center - 20)
+              hi = min(len(stream), center + 21)
 
               # Candidate edits are all after this compressed-byte checkpoint.
               prefix_byte = max(0, (lo * 3) // 4 - 16)
