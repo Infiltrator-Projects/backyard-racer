@@ -82,8 +82,8 @@ private:
 };
 
 
-inline constexpr int kVehicleMasterWidth = 1024;
-inline constexpr int kVehicleMasterHeight = 320;
+inline constexpr int kVehicleMasterWidth = 960;
+inline constexpr int kVehicleMasterHeight = 300;
 inline constexpr int kVehicleMaxDisplayWidth = 860;
 
 enum class PaintMaskKind { Hue, LightNeutral, DarkNeutral };
@@ -254,8 +254,8 @@ SurfaceOwner extract_wheel(const SurfaceOwner& source,
 }
 
 CarArt make_photo_car_art(const SurfaceOwner& sheet, const PhotoCarProfile& p) {
-    constexpr int sheet_width = 512;
-    constexpr int row_height = 160;
+    constexpr int sheet_width = 960;
+    constexpr int row_height = 300;
 
     SurfaceOwner row = crop_surface(
         sheet, 0, p.sheet_row * row_height, sheet_width, row_height);
