@@ -1,4 +1,7 @@
 import base64
+import os
+import subprocess
+import sys
 import pathlib
 import string
 import zlib
@@ -145,3 +148,17 @@ for index, path in enumerate(paths):
         part = stream[offset:offset + lengths[index]]
         offset += lengths[index]
     path.write_text('"' + part + '"\n')
+
+
+# The original convergence workflow committed one validated correction per pass.
+# A heavily damaged Base64 stream can contain many independent corruptions, so
+# after this invocation writes one size-safe improvement, continue applying the
+# exact same validator in short child invocations before handing control back to
+# the workflow.  Child runs are single-repair only to avoid recursive fan-out.
+if os.environ.get("BACKYARD_REPAIR_SINGLE") != "1":
+    child_env = dict(os.environ)
+    child_env["BACKYARD_REPAIR_SINGLE"] = "1"
+    for chained_pass in range(24):
+        result = subprocess.run([sys.executable, __file__], env=child_env)
+        if result.returncode != 0:
+            raise SystemExit(result.returncode)
