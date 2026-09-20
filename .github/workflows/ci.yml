@@ -15,7 +15,7 @@ jobs:
       - name: Install X11 development files
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev
+          sudo apt-get install -y dpkg-dev libx11-dev
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -30,3 +30,26 @@ jobs:
         run: |
           ./build/backyard-racer --version
           ./build/backyard-racer --project-info
+
+      - name: Verify generic Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/build-deb.sh
+          packaging/build-deb.sh build-package dist
+          version="$(sed -n 's/^project(BackyardRacer VERSION \([^ ]*\) LANGUAGES C CXX)$/\1/p' CMakeLists.txt)"
+          deb="dist/backyard-racer_${version}_amd64.deb"
+          test -s "$deb"
+          test "$(dpkg-deb -f "$deb" Package)" = "backyard-racer"
+          dpkg-deb --fsys-tarfile "$deb" | tar -tf - | grep -qx './usr/bin/backyard-racer'
+
+      - name: Verify hardware-native source install
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-native -DCMAKE_BUILD_TYPE=Release -DBACKYARD_BUILD_PROFILE=native
+          cmake --build build-native --parallel
+          ctest --test-dir build-native --output-on-failure
+          rm -rf native-stage
+          DESTDIR="$PWD/native-stage" cmake --install build-native --component Runtime --prefix /usr
+          test -x native-stage/usr/bin/backyard-racer
