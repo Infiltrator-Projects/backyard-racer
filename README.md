@@ -16,13 +16,13 @@ The project keeps proven ideas when they remain fun and mechanically sound, and 
 
 Backyard Racer consumes **Infiltratr Common** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
 
-The build is pinned to Infiltratr Common **v1.19.7**, exact release commit:
+The build is pinned to Infiltratr Common **v1.19.24**, exact release commit:
 
-`882c61a1e8626d4c733bdf45bda7152a30e56ded`
+`748e089ae175329471d4cf375522c44081371bd5`
 
 The current game uses Common for canonical project/application identity, the exact fixed-step scheduler used by the live quarter-mile race, monotonic host timing, durable atomic save publication, software surfaces, alpha composition, luminance tinting, nearest/bilinear image scaling and locale-independent fixed-point formatting for race timing. Pixel-art screens such as the low-resolution newspaper deliberately retain nearest-neighbour scaling; photographic/authored UI and vehicle assets use Common's alpha-aware bilinear path.
 
-Common 1.19.7 also publishes shared application theme, design-metric and MB Corpo typography contracts. Backyard Racer deliberately does **not** apply those contracts to the in-game presentation: its garage, newspaper, race HUD and bitmap type are authored game art with their own visual language. Shared mechanics come from Common where they are stronger; game-specific presentation remains here.
+Common 1.19.24 also publishes shared application theme, design-metric and MB Corpo typography contracts. Backyard Racer deliberately does **not** apply those contracts to the in-game presentation: its garage, newspaper, race HUD and bitmap type are authored game art with their own visual language. Shared mechanics come from Common where they are stronger; game-specific presentation remains here.
 
 ## Presentation architecture
 
