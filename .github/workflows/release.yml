@@ -106,19 +106,9 @@ jobs:
             --title "Backyard Racer $VERSION" \
             --generate-notes
 
-      - name: Refresh Infiltrator APT repository
-        env:
-          DISPATCH_TOKEN: ${{ secrets.APT_REPOSITORY_DISPATCH_TOKEN }}
+      - name: Record pull-based APT publication
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -n "${DISPATCH_TOKEN:-}" ]]; then
-            GH_TOKEN="$DISPATCH_TOKEN" gh api --method POST \
-              repos/Infiltrator-Projects/Infiltrator-Repository/dispatches \
-              -f event_type='application-release' \
-              -f "client_payload[repository]=$GITHUB_REPOSITORY" \
-              -f "client_payload[sha]=$EXPECTED_SHA" >/dev/null || \
-              echo "::warning::Immediate APT refresh dispatch failed; scheduled repository refresh remains available."
-          else
-            echo "::warning::APT refresh token unavailable; scheduled repository refresh remains available."
-          fi
+          echo "Central APT publication is pull-based."
+          echo "Infiltrator-Repository will discover this immutable GitHub release on its own schedule."
