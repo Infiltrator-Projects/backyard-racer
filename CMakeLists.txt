@@ -28,7 +28,7 @@ set(INFILTRATR_COMMON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     InfiltratrCommon
     GIT_REPOSITORY https://github.com/Infiltrator-Projects/Infiltrator-Libraries.git
-    GIT_TAG 882c61a1e8626d4c733bdf45bda7152a30e56ded
+    GIT_TAG 748e089ae175329471d4cf375522c44081371bd5
 )
 FetchContent_MakeAvailable(InfiltratrCommon)
 
