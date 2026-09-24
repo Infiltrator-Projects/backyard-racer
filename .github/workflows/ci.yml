@@ -7,15 +7,26 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ${{ startsWith(github.event.head_commit.message, 'Release ') && 'ubuntu-latest' || 'linux-native' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install X11 development files
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y dpkg-dev libx11-dev
+
+      - name: Verify self-hosted X11 dependencies
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for command_name in cmake ctest dpkg-deb pkg-config; do
+            command -v "$command_name" >/dev/null 2>&1 || exit 1
+          done
+          pkg-config --exists x11
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
