@@ -4,7 +4,7 @@ This file records user-visible, compatibility, architecture and validation chang
 
 ## Unreleased
 
-- Advance the exact Infiltratr Common dependency from 1.19.7 to released 1.19.24 (`748e089ae175329471d4cf375522c44081371bd5`), inheriting the current atomic-file durability and software-surface clipping/aliasing hardening without changing game-owned behaviour.
+- Advance the exact Infiltratr Common dependency from 1.19.7 to released 1.19.35 (`7cc5de3de0e94ed2cfcff0840bbb5346eb5c9c9f`), inheriting the current atomic-file durability and software-surface clipping/aliasing hardening without changing game-owned behaviour.
 - Replaced the procedural vehicle-body renderer with the approved model-specific authored car artwork; runtime paint, wheel and removable-bumper layers are derived from those images.
 - Added independently removable/refittable front and rear bumpers with a $50-per-end garage cost and persistent save state.
 - Classified listings now open a full newspaper article; purchase requires a separate explicit action from that article.
