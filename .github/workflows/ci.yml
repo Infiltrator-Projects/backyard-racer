@@ -7,7 +7,7 @@ on:
 
 jobs:
   linux:
-    runs-on: ${{ startsWith(github.event.head_commit.message, 'Release ') && 'ubuntu-latest' || 'linux-native' }}
+    runs-on: ${{ startsWith(github.event.head_commit.message, 'Release ') && 'ubuntu-latest' || 'bigbedroom' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
