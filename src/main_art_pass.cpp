@@ -14,7 +14,7 @@
 
 #include <iterator>
 
-#include "generated_assets.h"
+#include "generated_assets.hpp"
 #include "generated_isometric_assets.h"
 #include "generated_vehicle_palette_variants.h"
 #include "generated_vehicle_body_variants.h"

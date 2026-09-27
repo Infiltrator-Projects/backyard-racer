@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "gameplay.h"
-#include "race_session.h"
+#include "gameplay.hpp"
+#include "race_session.hpp"
 
 #include <infiltratr/timing.h>
 

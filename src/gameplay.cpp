@@ -5,8 +5,8 @@
 // reusable removed parts, damage repair costs and vehicle selling value),
 // while this implementation is a fresh modern C++ port for Backyard Racer.
 
-#include "gameplay.h"
-#include "vehicle_data.h"
+#include "gameplay.hpp"
+#include "vehicle_data.hpp"
 
 #include <infiltratr/posix.h>
 

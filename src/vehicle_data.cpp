@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "vehicle_data.h"
+#include "vehicle_data.hpp"
 
 #include <algorithm>
 #include <initializer_list>

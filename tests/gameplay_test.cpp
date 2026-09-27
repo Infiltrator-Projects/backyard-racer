@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "gameplay.h"
-#include "vehicle_data.h"
+#include "gameplay.hpp"
+#include "vehicle_data.hpp"
 
 #include <filesystem>
 #include <iostream>

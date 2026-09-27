@@ -4,9 +4,9 @@
 #include <infiltratr/core.h>
 #include <infiltratr/timing.h>
 
-#include "gameplay.h"
-#include "race_session.h"
-#include "generated_assets.h"
+#include "gameplay.hpp"
+#include "race_session.hpp"
+#include "generated_assets.hpp"
 
 #include <algorithm>
 #include <chrono>

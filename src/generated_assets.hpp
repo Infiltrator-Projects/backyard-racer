@@ -4,6 +4,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 
 namespace backyard_racer::assets {
 struct SpriteColor { std::uint8_t r, g, b; };

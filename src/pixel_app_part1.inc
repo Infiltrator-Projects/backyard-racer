@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "pixel_app.hpp"
 
-#include "gameplay.h"
-#include "race_session.h"
-#include "scene_embedded_assets.h"
+#include "gameplay.hpp"
+#include "race_session.hpp"
+#include "scene_embedded_assets.hpp"
 
 #include <infiltratr/format.h>
 #include <zlib.h>

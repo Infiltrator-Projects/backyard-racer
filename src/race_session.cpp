@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "race_session.h"
+#include "race_session.hpp"
 
 #include <algorithm>
 #include <array>

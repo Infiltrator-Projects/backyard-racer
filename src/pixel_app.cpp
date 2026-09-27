@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Pixel renderer kept split while the architecture cutover lands.
-#include "scene_embedded_assets.h"
+#include "scene_embedded_assets.hpp"
 #include "pixel_app.hpp"
 #include <algorithm>
 #include <cmath>

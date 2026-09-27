@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "gameplay.h"
+#include "gameplay.hpp"
 
 #include <filesystem>
 #include <string>
