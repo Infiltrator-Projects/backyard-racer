@@ -7,7 +7,9 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-24.04"]' || '["self-hosted","Linux","X64","linux-native"]') }}
+    env:
+      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,3 +74,4 @@ jobs:
           name: backyard-racer-linux-amd64
           path: dist/backyard-racer_0.6.0_amd64.deb
           if-no-files-found: error
+
