@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
 
-project(BackyardRacer VERSION 0.6.0 LANGUAGES C CXX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PRODUCT_VERSION)
+string(STRIP "${PRODUCT_VERSION}" PRODUCT_VERSION)
+project(BackyardRacer VERSION "${PRODUCT_VERSION}" LANGUAGES C CXX)
 
+include(CTest)
 include(FetchContent)
 include(GNUInstallDirs)
 
@@ -60,6 +63,7 @@ add_executable(backyard-racer
     src/platform_x11.cpp)
 target_compile_features(backyard-racer PRIVATE cxx_std_20)
 set_target_properties(backyard-racer PROPERTIES CXX_EXTENSIONS OFF)
+target_compile_definitions(backyard-racer PRIVATE BACKYARD_VERSION="${PROJECT_VERSION}")
 target_link_libraries(backyard-racer PRIVATE
     backyard-pixel-core
     X11::X11)
@@ -74,23 +78,25 @@ install(FILES README.md
     DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/backyard-racer"
     COMPONENT Runtime)
 
-add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
-target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
+if(BUILD_TESTING)
+    add_executable(backyard-gameplay-test tests/gameplay_test.cpp)
+    target_link_libraries(backyard-gameplay-test PRIVATE backyard-gameplay)
 
-add_executable(backyard-race-session-test tests/race_session_test.cpp)
-target_link_libraries(backyard-race-session-test PRIVATE backyard-gameplay)
+    add_executable(backyard-race-session-test tests/race_session_test.cpp)
+    target_link_libraries(backyard-race-session-test PRIVATE backyard-gameplay)
 
-add_executable(backyard-pixel-core-test tests/pixel_core_test.cpp)
-target_link_libraries(backyard-pixel-core-test PRIVATE backyard-pixel-core)
+    add_executable(backyard-pixel-core-test tests/pixel_core_test.cpp)
+    target_link_libraries(backyard-pixel-core-test PRIVATE backyard-pixel-core)
 
-add_executable(backyard-paint-state-test tests/paint_state_test.cpp)
-target_link_libraries(backyard-paint-state-test PRIVATE backyard-gameplay)
+    add_executable(backyard-paint-state-test tests/paint_state_test.cpp)
+    target_link_libraries(backyard-paint-state-test PRIVATE backyard-gameplay)
 
-enable_testing()
-add_test(NAME gameplay-smoke COMMAND backyard-gameplay-test)
-add_test(NAME race-session-common-timing COMMAND backyard-race-session-test)
-add_test(NAME pixel-core-no-x11 COMMAND backyard-pixel-core-test)
-add_test(NAME paint-state-persistence COMMAND backyard-paint-state-test)
+    add_test(NAME gameplay-smoke COMMAND backyard-gameplay-test)
+    add_test(NAME race-session-common-timing COMMAND backyard-race-session-test)
+    add_test(NAME pixel-core-no-x11 COMMAND backyard-pixel-core-test)
+    add_test(NAME paint-state-persistence COMMAND backyard-paint-state-test)
+
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     foreach(target
@@ -101,6 +107,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             backyard-race-session-test
             backyard-pixel-core-test
             backyard-paint-state-test)
-        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(TARGET ${target})
+            target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
     endforeach()
 endif()

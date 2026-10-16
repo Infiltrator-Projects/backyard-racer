@@ -1,114 +1,84 @@
 name: Publish release
-
 on:
   workflow_run:
     workflows: ["Backyard Racer CI"]
     types: [completed]
-
 permissions:
   contents: read
-
+  actions: read
 concurrency:
   group: publish-release-${{ github.repository }}
   cancel-in-progress: false
-
 jobs:
   publish:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      startsWith(github.event.workflow_run.head_commit.message, 'Release ')
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
+      actions: read
     env:
       EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Check out exact tested main commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
-          submodules: recursive
-
-      - name: Verify release identity
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          name: backyard-racer-qualified-${{ github.event.workflow_run.head_sha }}
+          path: release
+      - name: Promote exact qualified bytes
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA" || exit 0
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
-          version="$(sed -n 's/^project(BackyardRacer VERSION \([^ ]*\) LANGUAGES C CXX)$/\1/p' CMakeLists.txt)"
-          test -n "$version"
-          subject="$(git log -1 --format=%s HEAD)"
-          if [[ "$subject" != "Release $version" && "$subject" != "Release $version:"* ]]; then
-            echo "::error::Release commit subject must begin with Release $version."
-            exit 1
+          test "$(cat release/SOURCE_COMMIT)" = "$EXPECTED_SHA"
+          (cd release && sha256sum -c SHA256SUMS.txt)
+          version=$(tr -d '\r\n' < VERSION)
+          tag="v$version"
+          deb="backyard-racer_${version}_amd64.deb"
+          source="backyard-racer_${version}_source.tar.gz"
+          expected=$(printf '%s\n' "$deb" "$source" SOURCE_COMMIT SHA256SUMS.txt | sort)
+          test "$(find release -maxdepth 1 -type f -printf '%f\n' | sort)" = "$expected"
+          test "$(dpkg-deb -f "release/$deb" Package)" = backyard-racer
+          test "$(dpkg-deb -f "release/$deb" Version)" = "$version"
+          test "$(dpkg-deb -f "release/$deb" Architecture)" = amd64
+          if git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
+            if [[ "$(git rev-parse "$tag^{commit}")" != "$EXPECTED_SHA" ]]; then
+              gh release view "$tag" --json isDraft --jq .isDraft | grep -qx false
+              echo "$tag already identifies an immutable release."
+              exit 0
+            fi
           fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential cmake dpkg-dev libx11-dev
-
-      - name: Rebuild generic Debian package
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x packaging/build-deb.sh
-          packaging/build-deb.sh build-package dist
-          deb="dist/backyard-racer_${VERSION}_amd64.deb"
-          test -s "$deb"
-          test "$(dpkg-deb -f "$deb" Package)" = "backyard-racer"
-          test "$(dpkg-deb -f "$deb" Version)" = "$VERSION"
-          test "$(dpkg-deb -f "$deb" Architecture)" = "amd64"
-
-      - name: Build deterministic source archive and checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist/source
-          root="$RUNNER_TEMP/backyard-racer-source/backyard-racer-$VERSION"
-          rm -rf "$(dirname "$root")"
-          mkdir -p "$root"
-          git archive --format=tar --prefix="backyard-racer-$VERSION/" "$EXPECTED_SHA" > "$RUNNER_TEMP/source.tar"
-          gzip -n -c "$RUNNER_TEMP/source.tar" > "dist/source/backyard-racer_${VERSION}_source.tar.gz"
-          sha256sum "dist/backyard-racer_${VERSION}_amd64.deb" "dist/source/backyard-racer_${VERSION}_source.tar.gz" > dist/SHA256SUMS.txt
-
-      - name: Publish immutable GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="v$VERSION"
-          deb="dist/backyard-racer_${VERSION}_amd64.deb"
-          source="dist/source/backyard-racer_${VERSION}_source.tar.gz"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            tag_commit="$(git rev-list -n 1 "$tag")"
-            test "$tag_commit" = "$EXPECTED_SHA"
-          else
-            git tag "$tag" "$EXPECTED_SHA"
-            git push origin "$tag"
+          if ! gh release view "$tag" --json isDraft,targetCommitish > "$RUNNER_TEMP/release-state"; then
+            gh release create "$tag" --target "$EXPECTED_SHA" --draft --title "Backyard Racer $version" --generate-notes
+            gh release view "$tag" --json isDraft,targetCommitish > "$RUNNER_TEMP/release-state"
           fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            existing="$(gh release view "$tag" --json assets --jq '.assets[].name' | sort)"
-            expected="$(printf '%s\n%s\n%s\n' "$(basename "$deb")" "$(basename "$source")" "SHA256SUMS.txt" | sort)"
-            test "$existing" = "$expected"
-            echo "Release $tag already exists with the expected immutable asset set."
-            exit 0
+          test "$(jq -r .targetCommitish "$RUNNER_TEMP/release-state")" = "$EXPECTED_SHA"
+          draft=$(jq -r .isDraft "$RUNNER_TEMP/release-state")
+          if [[ "$draft" == true ]]; then
+            gh release upload "$tag" release/* --clobber
           fi
-          gh release create "$tag" "$deb" "$source" dist/SHA256SUMS.txt \
-            --verify-tag \
-            --target "$EXPECTED_SHA" \
-            --title "Backyard Racer $VERSION" \
-            --generate-notes
-
-      - name: Record pull-based APT publication
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Central APT publication is pull-based."
-          echo "Infiltrator-Repository will discover this immutable GitHub release on its own schedule."
+          verify_remote() {
+            local destination
+            destination=$(mktemp -d)
+            gh release download "$tag" --dir "$destination"
+            diff -qr release "$destination"
+            rm -rf "$destination"
+          }
+          verify_remote
+          if [[ "$draft" == true ]]; then
+            gh release edit "$tag" --draft=false --latest
+          fi
+          verify_remote
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          test "$(git rev-parse "$tag^{commit}")" = "$EXPECTED_SHA"

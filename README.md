@@ -115,3 +115,5 @@ ctest --test-dir build --output-on-failure
 ./build/backyard-racer --version
 ./build/backyard-racer --project-info
 ```
+
+Build and release identity is authoritative in [VERSION](VERSION). See [Validation](docs/VALIDATION.md) for package qualification and immutable publication.

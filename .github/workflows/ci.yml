@@ -12,7 +12,7 @@ jobs:
       PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Install X11 development files
         if: runner.environment == 'github-hosted'
@@ -30,27 +30,14 @@ jobs:
           done
           pkg-config --exists x11
 
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Test gameplay core
-        run: ctest --test-dir build --output-on-failure
-
-      - name: Verify shared project metadata
-        run: |
-          ./build/backyard-racer --version
-          ./build/backyard-racer --project-info
-
       - name: Verify generic Debian package
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x packaging/build-deb.sh
-          packaging/build-deb.sh build-package dist
-          version="$(sed -n 's/^project(BackyardRacer VERSION \([^ ]*\) LANGUAGES C CXX)$/\1/p' CMakeLists.txt)"
+          bash packaging/build-deb.sh build-package dist
+          ./build-package/backyard-racer --version
+          ./build-package/backyard-racer --project-info
+          version="$(tr -d '\r\n' < VERSION)"
           deb="dist/backyard-racer_${version}_amd64.deb"
           test -s "$deb"
           test "$(dpkg-deb -f "$deb" Package)" = "backyard-racer"
@@ -68,10 +55,18 @@ jobs:
           DESTDIR="$PWD/native-stage" cmake --install build-native --component Runtime --prefix /usr
           test -x native-stage/usr/bin/backyard-racer
 
-      - name: Upload generic Debian package
-        uses: actions/upload-artifact@v4
+      - name: Seal qualified package and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(tr -d '\r\n' < VERSION)
+          git archive --format=tar --prefix="backyard-racer-$version/" HEAD | gzip -n > "dist/backyard-racer_${version}_source.tar.gz"
+          printf '%s\n' "$GITHUB_SHA" > dist/SOURCE_COMMIT
+          (cd dist && sha256sum *.deb *.tar.gz SOURCE_COMMIT > SHA256SUMS.txt)
+      - name: Preserve qualified release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: backyard-racer-linux-amd64
-          path: dist/backyard-racer_0.6.0_amd64.deb
+          name: backyard-racer-qualified-${{ github.sha }}
+          path: dist/*
           if-no-files-found: error
-
+          retention-days: 14

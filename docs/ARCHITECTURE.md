@@ -33,3 +33,7 @@ Keep game/site/calculation domain logic independent from rendering/toolkit/hosti
 - docs/RENDERING_AND_PRESENTATION.md
 - docs/VEHICLE_PRESENTATION_AND_PAINT.md
 - docs/UPSTREAM.md
+
+## Build and release boundary
+
+VERSION owns product identity. CMake owns target membership and the immutable Common dependency. Packaging owns generic build/test/staging; CI qualifies platform variants and preserves their output. The publisher owns promotion of sealed artifacts and performs no compilation. The central repository independently discovers public releases.
