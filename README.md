@@ -34,7 +34,7 @@ Garage/car presentation, including the single persistent open-door garage, neutr
 
 ## Current playable loop
 
-Version `0.6.0-dev` has a basic garage-to-race loop and persistent progression.
+The current implementation has a basic garage-to-race loop and persistent progression.
 
 The current loop is:
 
