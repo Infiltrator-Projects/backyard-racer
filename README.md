@@ -14,9 +14,9 @@ The project keeps proven ideas when they remain fun and mechanically sound, and 
 
 ## Shared foundation
 
-Backyard Racer consumes **Infiltratr Common** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
+Backyard Racer consumes **Libraries** as the canonical shared-code dependency instead of maintaining private copies of reusable project infrastructure.
 
-The build is pinned to Infiltratr Common **v1.19.35**, exact release commit:
+The build is pinned to Libraries **v1.19.35**, exact release commit:
 
 `7cc5de3de0e94ed2cfcff0840bbb5346eb5c9c9f`
 

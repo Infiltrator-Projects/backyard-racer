@@ -30,7 +30,7 @@ set(INFILTRATR_COMMON_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(INFILTRATR_COMMON_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     InfiltratrCommon
-    GIT_REPOSITORY https://github.com/Infiltrator-Projects/Infiltrator-Libraries.git
+    GIT_REPOSITORY https://github.com/Infiltrator-Projects/Libraries.git
     GIT_TAG 7cc5de3de0e94ed2cfcff0840bbb5346eb5c9c9f
 )
 FetchContent_MakeAvailable(InfiltratrCommon)
@@ -68,7 +68,7 @@ target_link_libraries(backyard-racer PRIVATE
     backyard-pixel-core
     X11::X11)
 
-# Installation deliberately exposes only the finished game. Infiltratr Common
+# Installation deliberately exposes only the finished game. Libraries
 # is linked into the executable and its own development/install surface must not
 # leak into Backyard Racer packages.
 install(TARGETS backyard-racer

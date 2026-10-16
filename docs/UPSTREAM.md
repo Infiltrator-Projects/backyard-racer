@@ -35,6 +35,6 @@ No patch source is currently incorporated into Backyard Racer.
 
 Reviewed as an additional modern implementation reference for screen/state separation around garage, shop, race, repair and economy systems. No source from this project is currently incorporated.
 
-## Infiltratr Common
+## Libraries
 
-Backyard Racer consumes `Infiltrator-Projects/Infiltrator-Libraries` as its canonical shared product-neutral dependency. Do not reimplement facilities in Backyard Racer when Common already owns the appropriate implementation.
+Backyard Racer consumes `Infiltrator-Projects/Libraries` as its canonical shared product-neutral dependency. Do not reimplement facilities in Backyard Racer when Common already owns the appropriate implementation.
