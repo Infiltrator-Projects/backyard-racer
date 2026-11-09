@@ -64,8 +64,9 @@ void DragRaceSession::update_rpm() {
 }
 
 void DragRaceSession::update(double dt_seconds) {
-    if (!active_ || finished_) return;
-    const double dt = std::clamp(dt_seconds, 0.0, 0.05);
+    if (!active_ || finished_ || !std::isfinite(dt_seconds) || dt_seconds <= 0.0)
+        return;
+    const double dt = std::min(dt_seconds, 0.05);
 
     if (!green_) {
         // Allow the player to stage/rev while waiting for green, but do not move.
