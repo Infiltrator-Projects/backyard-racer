@@ -15,7 +15,9 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
-    runs-on: [self-hosted, Linux, X64, linux-native]
+    # Publishing needs gh, jq and dpkg; GitHub-hosted Ubuntu supplies them.
+    # Native compilation and testing remain on the linux-native runner in CI.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
