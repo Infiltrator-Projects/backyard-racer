@@ -145,7 +145,7 @@ int main() {
     // without corrupting an already active game.
     {
         std::ofstream append(save_path, std::ios::app);
-        if (!append || !(append << "UNEXPECTED RECORD\\n"))
+        if (!append || !(append << "UNEXPECTED RECORD\n"))
             return fail("could not append malformed save fixture");
     }
     GameState preserved;
