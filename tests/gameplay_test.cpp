@@ -3,6 +3,7 @@
 #include "vehicle_data.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -139,6 +140,21 @@ int main() {
 
     GameState restored;
     if (!restored.load_from(save_path.string(), &error)) return fail("could not reload game: " + error);
+
+    // The save format terminates at END. Extra records must be rejected
+    // without corrupting an already active game.
+    {
+        std::ofstream append(save_path, std::ios::app);
+        if (!append || !(append << "UNEXPECTED RECORD\\n"))
+            return fail("could not append malformed save fixture");
+    }
+    GameState preserved;
+    preserved.new_game();
+    const int preserved_cash = preserved.cash();
+    if (preserved.load_from(save_path.string(), &error))
+        return fail("save loader accepted data after END");
+    if (!preserved.started() || preserved.cash() != preserved_cash)
+        return fail("malformed save changed the current game state");
     std::filesystem::remove(save_path, remove_error);
     if (!restored.started()) return fail("reloaded game was not marked started");
     if (restored.cash() != game.cash()) return fail("cash did not survive save/load");
