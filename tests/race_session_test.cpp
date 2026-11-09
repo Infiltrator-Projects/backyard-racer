@@ -5,6 +5,7 @@
 #include <infiltratr/timing.h>
 
 #include <cstdint>
+#include <limits>
 #include <iostream>
 #include <string>
 
@@ -30,6 +31,15 @@ int main() {
     DragRaceSession race;
     race.start(*car, opponent);
     race.set_throttle(true);
+
+    // A malformed host frame delta must not poison the race simulation.
+    race.update(std::numeric_limits<double>::quiet_NaN());
+    race.update(std::numeric_limits<double>::infinity());
+    race.update(-1.0);
+    race.update(0.0);
+    if (race.countdown() != 2.5 || race.green() || race.elapsed() != 0.0 ||
+        race.distance_ft() != 0.0)
+        return fail("invalid frame intervals modified the race state");
 
     InfiltratrFixedStepScheduler scheduler{};
     if (!infiltratr_fixed_step_configure(&scheduler, 1000000000ULL, 60ULL,
