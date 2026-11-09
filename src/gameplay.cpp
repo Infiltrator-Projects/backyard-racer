@@ -958,6 +958,12 @@ bool GameState::load_from(const std::string& path, std::string* error) {
         set_error(error, "SAVE FILE IS INCOMPLETE");
         return false;
     }
+    // Accept trailing whitespace, but reject additional records or I/O errors.
+    // Nothing parsed so far has been applied to the current game state.
+    if ((in >> marker) || !in.eof()) {
+        set_error(error, "SAVE FILE HAS TRAILING DATA");
+        return false;
+    }
     if (!garage.empty() && active >= garage.size()) {
         set_error(error, "SAVE FILE HAS INVALID ACTIVE CAR");
         return false;
