@@ -213,7 +213,7 @@
         button({width / 2 - 100, 370, 200, 46}, "BACK");
     }
 
-    void draw() {
+    void legacy_draw() {
         switch (screen) {
             case Screen::Menu: draw_menu(); break;
             case Screen::Classifieds: draw_classifieds(); break;

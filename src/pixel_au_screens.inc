@@ -55,7 +55,7 @@
         return std::clamp(width / 7, 132, 180);
     }
 
-    Rect classified_ad_rect(std::size_t index) const {
+    Rect legacy_au_classified_ad_rect(std::size_t index) const {
         const int margin = 32;
         const int gutter = 14;
         const int sidebar = newspaper_sidebar_width();
@@ -67,11 +67,11 @@
         return {centre_x, top + static_cast<int>(index) * row_h, centre_w, row_h};
     }
 
-    Rect newspaper_next_week_rect() const {
+    Rect legacy_au_newspaper_next_week_rect() const {
         return {width - 360, height - 53, 150, 30};
     }
 
-    Rect newspaper_garage_rect() const {
+    Rect legacy_au_newspaper_garage_rect() const {
         return {width - 198, height - 53, 150, 30};
     }
 
@@ -132,7 +132,7 @@
                              "MOTOR TRADER", "FRESH STOCK WEEKLY", "TURN THE PAGE", true);
     }
 
-    void draw_classifieds_au() {
+    void legacy_au_draw_classifieds_au() {
         const Color ink = rgba(27, 26, 23);
         const Color rule = rgba(83, 78, 69);
         const Color hover_ink = rgba(128, 50, 42);
@@ -167,7 +167,7 @@
         };
 
         for (std::size_t i = 0; i < cars.size(); ++i) {
-            const Rect ad = classified_ad_rect(i);
+            const Rect ad = legacy_au_classified_ad_rect(i);
             const bool hover = ad.contains(mouse_x, mouse_y);
             if (hover) {
                 frame.fill(ad.x, ad.y, ad.w, ad.h, rgba(214, 210, 196));
@@ -207,8 +207,8 @@
             }
         }
 
-        const Rect next_week = newspaper_next_week_rect();
-        const Rect garage = newspaper_garage_rect();
+        const Rect next_week = legacy_au_newspaper_next_week_rect();
+        const Rect garage = legacy_au_newspaper_garage_rect();
         frame.fill(12, height - 58, width - 32, 46, ink);
         newspaper_bold(30, height - 46,
                        "BANKROLL $" + std::to_string(game.cash()), GlyphAtlas::Tone::Pale, 1);
@@ -363,10 +363,10 @@
              GlyphAtlas::Tone::Pale, 2);
     }
 
-    void draw() {
+    void legacy_au_draw() {
         switch (screen) {
             case Screen::Menu: draw_menu(); break;
-            case Screen::Classifieds: draw_classifieds_au(); break;
+            case Screen::Classifieds: legacy_au_draw_classifieds_au(); break;
             case Screen::Garage: draw_garage_au(); break;
             case Screen::Parts: draw_parts_au(); break;
             case Screen::Diner: draw_diner(); break;
