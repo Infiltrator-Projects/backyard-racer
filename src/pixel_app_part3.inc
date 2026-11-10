@@ -214,12 +214,12 @@
         return true;
     }
 
-    Rect menu_new() const { return {72, 252, 300, 48}; }
-    Rect menu_continue() const { return {72, 312, 300, 48}; }
-    Rect menu_settings() const { return {72, 372, 300, 48}; }
-    Rect menu_quit() const { return {72, 432, 300, 48}; }
+    Rect legacy_menu_new() const { return {72, 252, 300, 48}; }
+    Rect legacy_menu_continue() const { return {72, 312, 300, 48}; }
+    Rect legacy_menu_settings() const { return {72, 372, 300, 48}; }
+    Rect legacy_menu_quit() const { return {72, 432, 300, 48}; }
 
-    void menu_button(Rect r, const std::string& label, bool enabled = true) {
+    void legacy_menu_button(Rect r, const std::string& label, bool enabled = true) {
         const bool hover = enabled && r.contains(mouse_x, mouse_y);
         if (enabled) {
             frame.blend(r.x, r.y, r.w, r.h,
@@ -236,7 +236,7 @@
         }
     }
 
-    void draw_menu() {
+    void legacy_draw_menu() {
         if (!garage_scaled.empty()) infiltratr_surface_copy(&frame.get(), &garage_scaled.get());
         else frame.clear(rgba(37, 34, 31));
 
@@ -254,10 +254,10 @@
         text(72, 151, "Build it. Race it. Risk it.", GlyphAtlas::Tone::Pale, 2);
         frame.fill(72, 190, 72, 3, rgba(166, 45, 35));
 
-        menu_button(menu_new(), "New Game");
-        menu_button(menu_continue(), "Continue", game.started());
-        menu_button(menu_settings(), "Settings");
-        menu_button(menu_quit(), "Quit");
+        legacy_menu_button(legacy_menu_new(), "New Game");
+        legacy_menu_button(legacy_menu_continue(), "Continue", game.started());
+        legacy_menu_button(legacy_menu_settings(), "Settings");
+        legacy_menu_button(legacy_menu_quit(), "Quit");
 
         const std::string footer = game.started() ?
             "Continue where you left off." : "Buy a car. Build it. Race it.";
